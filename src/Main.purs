@@ -2,44 +2,36 @@ module Main where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, stringify)
-import Data.Array (head)
-import Data.Either (Either(..), either)
-import Data.GraphQL as GraphQL
-import Data.Maybe (Maybe(..), maybe)
+import Data.Argonaut.Core (stringify)
+import Data.Either (Either(..))
+import Data.GraphQL (graphql) as GraphQL
+import Data.GraphQL.Type (ObjectType, Schema, argument, field, field', intScalar, objectType, schema, stringScalar) as GraphQL
+import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Effect.Aff (Aff, Error, Fiber, Milliseconds(..), delay, runAff, throwError)
+import Effect.Aff (Aff, Fiber, Milliseconds(..), delay, runAff)
 import Effect.Console (log)
 import Effect.Exception (message)
 
 main :: Effect (Fiber Unit)
-main = runAff logResult $ runQuery mySchema "{ square(value: 3) }"
+main = runAff logResult $ GraphQL.graphql mySchema query unit
     where
-      logResult :: Either Error Json -> Effect Unit
+      query = "{ hello square(value: 3) }"
       logResult (Left error) = log $ "Error: " <> message error
       logResult (Right result) = log $ stringify result
 
-runQuery :: GraphQL.Schema -> String -> Aff Json
-runQuery schema query = do
-  document <- either throwError pure $ GraphQL.parse query
-  let errors = GraphQL.validate schema document
-  maybe (pure unit) throwError $ head errors
-  GraphQL.execute schema document
-
-mySchema :: GraphQL.Schema
+mySchema :: GraphQL.Schema Unit
 mySchema = GraphQL.schema queryType Nothing
 
-queryType :: GraphQL.GraphQLType Unit
+queryType :: GraphQL.ObjectType Unit
 queryType = GraphQL.objectType "Query" (Just "The main query type")
     { hello
     , square
     }
   where
     hello = GraphQL.field' GraphQL.stringScalar Nothing \_ -> do
-      delay $ Milliseconds 2000.0
+      delay $ Milliseconds 1000.0
       pure "Hello World"
 
-    square :: GraphQL.Field Unit
     square = GraphQL.field
       GraphQL.intScalar
       (Just "Calculate the square of an int")
