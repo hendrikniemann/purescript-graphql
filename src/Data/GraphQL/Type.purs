@@ -6,10 +6,10 @@ module Data.GraphQL.Type
        , ObjectTypeFieldArg
        , class OutputType
        , class InputType
-       , floatScalar
-       , idScalar
-       , intScalar
-       , stringScalar
+       , float
+       , id
+       , int
+       , string
        , schema
        , objectType
        , field
@@ -58,13 +58,13 @@ class InputType a
 
 instance scalarTypeInputType :: InputType (ScalarType a)
 
-foreign import floatScalar :: ScalarType Number
+foreign import float :: ScalarType Number
 
-foreign import intScalar :: ScalarType Int
+foreign import int :: ScalarType Int
 
-foreign import stringScalar :: ScalarType String
+foreign import string :: ScalarType String
 
-foreign import idScalar :: ScalarType String
+foreign import id :: ScalarType String
 
 -- | Create a schema given a root query object type and a root mutation type.
 -- | Schemas don't need a mutation type therefore it is optional.

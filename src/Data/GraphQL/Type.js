@@ -1,21 +1,21 @@
 var G = require("graphql");
 
-exports.floatScalar = G.GraphQLFloat;
+exports.float = G.GraphQLFloat;
 
-exports.intScalar = G.GraphQLInt;
+exports.int = G.GraphQLInt;
 
-exports.stringScalar = G.GraphQLString;
+exports.string = G.GraphQLString;
 
-exports.idScalar = G.GraphQLID;
+exports.id = G.GraphQLID;
 
-exports._schema = function(query, mutation) {
+exports._schema = function (query, mutation) {
   return new G.GraphQLSchema({
     query: query,
     mutation: mutation || undefined
   });
 };
 
-exports._objectType = function(name, description, fields) {
+exports._objectType = function (name, description, fields) {
   return new G.GraphQLObjectType({
     name: name,
     description: description || undefined,
@@ -23,18 +23,18 @@ exports._objectType = function(name, description, fields) {
   });
 };
 
-exports._field = function(type, description, args, resolve) {
+exports._field = function (type, description, args, resolve) {
   return {
     type: type,
     description: description || undefined,
     args: args,
-    resolve: function(parent, args, context, resolveInfo) {
+    resolve: function (parent, args, context, resolveInfo) {
       return resolve(parent)(args)();
     }
   };
 };
 
-exports._argument = function(type, description) {
+exports._argument = function (type, description) {
   return {
     type: type,
     description: description || undefined
