@@ -2,14 +2,18 @@ module Data.GraphQL.Type
        ( Schema
        , ObjectType
        , ScalarType
+       , ListType
        , ObjectTypeField
        , ObjectTypeFieldArg
+       , class GraphQLType
        , class OutputType
        , class InputType
        , float
        , id
        , int
        , string
+       , list
+       , nonNull
        , schema
        , objectType
        , field
@@ -46,25 +50,44 @@ foreign import data ObjectTypeField :: Type -> Type
 -- | A type holding the configuration of a field argument
 foreign import data ObjectTypeFieldArg :: Type -> Type
 
+-- | A GraphQL list type
+foreign import data ListType :: Type -> Type
+
+class GraphQLType a
+
+instance scalarTypeGraphQLType :: GraphQLType (ScalarType a)
+
+instance objectTypeGraphQLType :: GraphQLType (ObjectType a)
+
+instance listTypeGraphQLType :: GraphQLType (ListType a)
+
 -- | A type class defining which types are output types
-class OutputType a
+class (GraphQLType a) <= OutputType a
 
 instance scalarTypeOutputType :: OutputType (ScalarType a)
 
 instance objectTypeOutputType :: OutputType (ObjectType a)
+
+instance listTypeOutputType :: (OutputType a) => OutputType (ListType (Array a))
 
 -- | A type class defining which types are input types
 class InputType a
 
 instance scalarTypeInputType :: InputType (ScalarType a)
 
-foreign import float :: ScalarType Number
+instance listTypeInputType :: (InputType a) => InputType (ListType (Array a))
 
-foreign import int :: ScalarType Int
+foreign import float :: ScalarType (Maybe Number)
 
-foreign import string :: ScalarType String
+foreign import int :: ScalarType (Maybe Int)
 
-foreign import id :: ScalarType String
+foreign import string :: ScalarType (Maybe String)
+
+foreign import id :: ScalarType (Maybe String)
+
+foreign import list :: ∀ t a. GraphQLType (t a) => t a -> ListType (Array a)
+
+foreign import nonNull :: ∀ t a. GraphQLType (t (Maybe a)) => t (Maybe a) -> t a
 
 -- | Create a schema given a root query object type and a root mutation type.
 -- | Schemas don't need a mutation type therefore it is optional.
