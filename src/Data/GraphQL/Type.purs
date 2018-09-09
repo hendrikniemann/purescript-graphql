@@ -1,10 +1,12 @@
 module Data.GraphQL.Type
        ( Schema
        , ObjectType
-       , ScalarType
-       , ListType
        , ObjectTypeField
        , ObjectTypeFieldArg
+       , ScalarType
+       , ListType
+       , InputObjectType
+       , InputObjectTypeField
        , class GraphQLType
        , class OutputType
        , class InputType
@@ -19,19 +21,23 @@ module Data.GraphQL.Type
        , field
        , field'
        , argument
+       , inputObjectType
+       , inputField
        , class ArgDeclarationToArgs
        , class ConvertDeclArgs
+       , class InputFieldsToReturnType
+       , class ConvertInputReturn
        ) where
 
 import Prelude
 
-import Prim.RowList (kind RowList, Cons, Nil)
 import Control.Promise (Promise, fromAff)
 import Data.Function.Uncurried (Fn2, Fn3, Fn4, runFn2, runFn3, runFn4)
 import Data.Maybe (Maybe)
-import Data.Nullable (Nullable, toNullable)
+import Data.Nullable (Nullable, toMaybe, toNullable)
 import Effect (Effect)
 import Effect.Aff (Aff)
+import Prim.RowList (kind RowList, Cons, Nil)
 import Type.Prelude (class RowToList, class ListToRow)
 import Type.Row.Homogeneous (class Homogeneous)
 
@@ -52,6 +58,11 @@ foreign import data ObjectTypeFieldArg :: Type -> Type
 
 -- | A GraphQL list type
 foreign import data ListType :: Type -> Type
+
+-- | An input object type to create complex input objects
+foreign import data InputObjectType :: Type -> Type
+
+foreign import data InputObjectTypeField :: Type -> Type
 
 class GraphQLType a
 
@@ -85,13 +96,13 @@ foreign import string :: ScalarType (Maybe String)
 
 foreign import id :: ScalarType (Maybe String)
 
-foreign import list :: ∀ t a. GraphQLType (t a) => t a -> ListType (Array a)
+foreign import list :: ∀ t a. GraphQLType (t a) => t a -> ListType (Maybe (Array a))
 
 foreign import nonNull :: ∀ t a. GraphQLType (t (Maybe a)) => t (Maybe a) -> t a
 
 -- | Create a schema given a root query object type and a root mutation type.
 -- | Schemas don't need a mutation type therefore it is optional.
-schema :: ∀ a. ObjectType a -> Maybe (ObjectType a) -> Schema a
+schema :: ∀ a. ObjectType (Maybe a) -> Maybe (ObjectType (Maybe a)) -> Schema a
 schema query mutation = runFn2 _schema query $ toNullable mutation
 
 -- | Create a new object type with the following properties:
@@ -102,7 +113,7 @@ objectType :: ∀ a r. Homogeneous r (ObjectTypeField a)
   => String
   -> Maybe String
   -> Record r
-  -> ObjectType a
+  -> ObjectType (Maybe a)
 objectType name description =
     runFn3 _objectType name $ toNullable description
 
@@ -114,13 +125,13 @@ objectType name description =
 -- | *Examples*
 -- | ``` purescript
 -- | hello :: Field Unit
--- | hello = field' stringScalar Nothing \_ -> pure "Hello World"
+-- | hello = field' string Nothing \_ -> pure "Hello World"
 -- |
--- | newtype User = User { name :: String, age :: Int }
--- | name :: Field User
--- | name = field' intScalar (Just "Age of the user") resolve
+-- | type User = { name :: String, age :: Int }
+-- | age :: Field User
+-- | age = field' intScalar (Just "Age of the user") resolve
 -- |   where
--- |     resolve (User user) = pure user.age
+-- |     resolve user = pure user.age
 -- | ```
 field' :: ∀ t a b . OutputType (t b)
   => t b
@@ -128,7 +139,7 @@ field' :: ∀ t a b . OutputType (t b)
   -> (a -> Aff b)
   -> ObjectTypeField a
 field' t description resolve =
-    runFn4 _field t (toNullable description) {} $
+    runFn4 boundField t (toNullable description) {} $
       \parent _ -> fromAff $ resolve parent
 
 -- | Create a field with the specified arguments
@@ -141,15 +152,49 @@ field :: ∀ t a b decl args. OutputType (t b)
   -> (a -> Record args -> Aff b)
   -> ObjectTypeField a
 field t description args resolve =
-  runFn4 _field t (toNullable description) args $
+  runFn4 boundField t (toNullable description) args $
       \parent a -> fromAff $ resolve parent a
 
--- | Create a single argument that can be used by a 
+-- | Create a single argument that can be used inside an argument declaration
 argument :: ∀ t a. InputType (t a)
   => t a
   -> Maybe String
   -> ObjectTypeFieldArg a
 argument t description = runFn2 _argument t $ toNullable description
+
+inputObjectType :: ∀ a r. InputFieldsToReturnType r a
+  => String
+  -> Maybe String
+  -> Record r
+  -> InputObjectType (Maybe (Record a))
+inputObjectType name description fields =
+  runFn3 _inputObjectType name (toNullable description) fields
+
+inputField :: ∀ t a. InputType (t a)
+  => (t a)
+  -> (Maybe String)
+  -> (InputObjectTypeField a)
+inputField t description = runFn2 _inputField t (toNullable description)
+
+class InputFieldsToReturnType
+  (input :: # Type)
+  (return :: # Type)
+  | input -> return
+
+instance inputFieldToReturnTypeImpl
+  :: ( RowToList input linput
+     , RowToList return lreturn
+     , ConvertInputReturn linput lreturn
+     , ListToRow linput input
+     , ListToRow lreturn return)
+  => InputFieldsToReturnType input return
+
+class ConvertInputReturn (linput :: RowList) (lreturn :: RowList)
+
+instance convertInputReturnNil :: ConvertInputReturn Nil Nil
+
+instance convertInputReturnCons :: ConvertInputReturn linput lreturn
+  => ConvertInputReturn (Cons k (InputObjectTypeField a) linput) (Cons k a lreturn)
 
 -- | A type class constraining the resolver arguments parameter to the supplied
 -- | arguments declaration.
@@ -168,26 +213,45 @@ instance argDeclarationToArgsImpl
      , ListToRow largs args )
   => ArgDeclarationToArgs decl args
 
-class ConvertDeclArgs (decl :: RowList) (args :: RowList)
+class ConvertDeclArgs (ldecl :: RowList) (largs :: RowList)
 
 instance convertDeclArgsNil :: ConvertDeclArgs Nil Nil
 
-instance convertDeclArgsCons :: ConvertDeclArgs decl args
-  => ConvertDeclArgs (Cons k (ObjectTypeFieldArg a) decl) (Cons k a args)
+instance convertDeclArgsCons :: ConvertDeclArgs ldecl largs
+  => ConvertDeclArgs (Cons k (ObjectTypeFieldArg a) ldecl) (Cons k a largs)
 
 foreign import _objectType :: ∀ a r.
   Fn3 String (Nullable String) (Record r) (ObjectType a)
 
 foreign import _schema :: ∀ a.
-  Fn2 (ObjectType a) (Nullable (ObjectType a)) (Schema a)
+  Fn2 (ObjectType (Maybe a)) (Nullable (ObjectType (Maybe a))) (Schema a)
 
-foreign import _field :: ∀ t a b decl args.
+boundField :: ∀ t a b decl args.
   Fn4
-  (t b)
-  (Nullable String)
-  decl
-  (a -> args -> Effect (Promise b))
-  (ObjectTypeField a)
+    (t b)
+    (Nullable String)
+    decl
+    (a -> args -> Effect (Promise b))
+    (ObjectTypeField a)
+boundField = runFn2 _field toNullable toMaybe
+
+foreign import _field :: ∀ z t a b decl args.
+  Fn2
+    (Maybe z -> Nullable z)
+    (Nullable z -> Maybe z)
+    (Fn4
+      (t b)
+      (Nullable String)
+      decl
+      (a -> args -> Effect (Promise b))
+      (ObjectTypeField a)
+    )
 
 foreign import _argument :: ∀ t a.
   Fn2 (t a) (Nullable String) (ObjectTypeFieldArg a)
+
+foreign import _inputObjectType :: ∀ a r.
+  Fn3 String (Nullable String) (Record r) (InputObjectType (Maybe a))
+
+foreign import _inputField :: ∀ t a.
+  Fn2 (t a) (Nullable String) (InputObjectTypeField a)
