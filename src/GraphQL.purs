@@ -1,15 +1,16 @@
-module Data.GraphQL
+module GraphQL
        ( graphql
        ) where
 
+import Prelude (($))
+
 import Data.Argonaut.Core (Json)
 import Data.Function.Uncurried (Fn5, runFn5)
-import Data.GraphQL.Type (Schema)
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toNullable)
 import Effect.Aff (Aff)
 import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
-import Prelude (($))
+import GraphQL.Type (Schema)
 
 graphql :: ∀ a. Schema a -> String -> a -> Maybe Json -> Maybe String -> Aff Json
 graphql schema query root variables operationName =

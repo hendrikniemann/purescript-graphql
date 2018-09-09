@@ -1,4 +1,4 @@
-module Data.GraphQL.Type
+module GraphQL.Type
        ( Schema
        , ObjectType
        , ObjectTypeField

@@ -1,10 +1,10 @@
-module Data.GraphQL.Language (parse) where
+module GraphQL.Language (parse) where
 
 -- | Parse a query string and return a parsed GraphQL document or an error.
 import Data.Either (Either(..))
 import Data.Function.Uncurried (Fn3, runFn3)
-import Data.GraphQL.Document (Document)
-import Effect.Exception (Error)
+import GraphQL.Document (Document)
+import Effect.Aff (Error)
 
 -- | Parse a query string and return a parsed GraphQL document or an error.
 parse :: String -> Either Error Document

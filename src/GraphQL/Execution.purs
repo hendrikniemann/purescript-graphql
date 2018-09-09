@@ -1,13 +1,13 @@
-module Data.GraphQL.Execution (execute) where
+module GraphQL.Execution (execute) where
 
 import Prelude (($))
 
 import Data.Argonaut.Core (Json)
 import Data.Function.Uncurried (Fn3, runFn3)
-import Data.GraphQL.Document (Document)
-import Data.GraphQL.Type (Schema)
 import Effect.Aff (Aff)
 import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
+import GraphQL.Document (Document)
+import GraphQL.Type (Schema)
 
 -- | Asyncroniously executes a query given the GraphQL document and a schema.
 execute :: ∀ a. Schema a -> Document -> a -> Aff Json

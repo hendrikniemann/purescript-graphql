@@ -1,4 +1,4 @@
-module Data.GraphQL.Document (Document) where
+module GraphQL.Document (Document) where
 
 import Prelude
 
