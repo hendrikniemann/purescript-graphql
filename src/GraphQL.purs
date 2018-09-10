@@ -12,12 +12,12 @@ import Effect.Aff (Aff)
 import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
 import GraphQL.Type (Schema)
 
-graphql :: ∀ a. Schema a -> String -> a -> Maybe Json -> Maybe String -> Aff Json
+graphql :: ∀ a b. Schema a b -> String -> a -> Maybe Json -> Maybe String -> Aff Json
 graphql schema query root variables operationName =
     fromEffectFnAff $ runFn5 _graphql schema query root nVariables nOperation
       where
         nVariables = toNullable variables
         nOperation = toNullable operationName
 
-foreign import _graphql :: ∀ a.
-  Fn5 (Schema a) String a (Nullable Json) (Nullable String) (EffectFnAff Json)
+foreign import _graphql :: ∀ a b.
+  Fn5 (Schema a b) String a (Nullable Json) (Nullable String) (EffectFnAff Json)

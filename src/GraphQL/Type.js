@@ -79,7 +79,7 @@ exports._field = function(toNullable, toMaybe) {
       args: argDef,
       resolve: function(parent, args, context, resolveInfo) {
         var transformedArgs = transformArgs(args, argDef);
-        var result = resolve(parent)(transformedArgs)();
+        var result = resolve(parent)(transformedArgs)(context)();
         if (nullable) {
           // Hack to handle returned Maybe values from the original resolver
           return result.then(toNullable);
