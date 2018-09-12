@@ -38,10 +38,11 @@ import Data.Nullable (Nullable, toMaybe, toNullable)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Prim.RowList (kind RowList, Cons, Nil)
+import Prim.TypeError (class Fail, Text, Above, Beside, Quote)
 import Type.Prelude (class RowToList, class ListToRow)
 import Type.Row.Homogeneous (class Homogeneous)
 
--- | A GraphQL schema containing the root and context types
+-- | A GraphQL schema with types for context and root
 foreign import data Schema :: Type -> Type -> Type
 
 -- | A GraphQL object type
@@ -50,10 +51,10 @@ foreign import data ObjectType :: Type -> Type -> Type
 -- | A GraphQL scalar type
 foreign import data ScalarType :: Type -> Type
 
--- | A type holding the configuration of a field
+-- | The configuration of a field represented in native JavaScript
 foreign import data ObjectTypeField :: Type -> Type -> Type
 
--- | A type holding the configuration of a field argument
+-- | The configuration of a field argument represented in native JavaScript
 foreign import data ObjectTypeFieldArg :: Type -> Type
 
 -- | A GraphQL list type
@@ -62,8 +63,10 @@ foreign import data ListType :: Type -> Type
 -- | An input object type to create complex input objects
 foreign import data InputObjectType :: Type -> Type
 
+-- | The configuration of a field represented in native JavaScript
 foreign import data InputObjectTypeField :: Type -> Type
 
+-- | A type class for all GraphQL types.
 class GraphQLType a
 
 instance scalarTypeGraphQLType :: GraphQLType (ScalarType a)
@@ -72,14 +75,24 @@ instance objectTypeGraphQLType :: GraphQLType (ObjectType ctx a)
 
 instance listTypeGraphQLType :: GraphQLType (ListType a)
 
--- | A type class defining which types are output types
-class (GraphQLType a) <= OutputType a
+-- | A type class defining which types are output types and at the same time
+-- | ensuring that the specific output type is bound to a certain context type.
+class (GraphQLType a) <= OutputType a ctx
 
-instance scalarTypeOutputType :: OutputType (ScalarType a)
+instance scalarTypeOutputType :: OutputType (ScalarType a) ctx
 
-instance objectTypeOutputType :: OutputType (ObjectType ctx a)
+instance objectTypeOutputType :: OutputType (ObjectType ctx a) ctx
+else instance objectTypeOutputTypeFail
+  :: Fail (Above
+    (Text "Cannot use object type with different context as field result.")
+    (Above
+      (Beside (Text "Expected context type: ") (Quote expected))
+      (Beside (Text "But received constext type: ") (Quote actual))))
+  => OutputType (ObjectType actual a) expected
 
-instance listTypeOutputType :: (OutputType a) => OutputType (ListType (Array a))
+instance listTypeOutputType
+  :: (OutputType a ctx)
+  => OutputType (ListType (Array a)) ctx
 
 -- | A type class defining which types are input types
 class InputType a
@@ -134,7 +147,7 @@ objectType name description =
 -- |   where
 -- |     resolve user = pure user.age
 -- | ```
-field' :: ∀ t a b ctx. OutputType (t b)
+field' :: ∀ t a b ctx. OutputType (t b) ctx
   => t b
   -> Maybe String
   -> (a -> ctx -> Aff b)
@@ -145,7 +158,7 @@ field' t description resolve =
 
 -- | Create a field with the specified arguments
 -- | 
-field :: ∀ t a b ctx decl args. OutputType (t b)
+field :: ∀ t a b ctx decl args. OutputType (t b) ctx
   => ArgDeclarationToArgs decl args
   => t b
   -> Maybe String
@@ -221,14 +234,14 @@ instance convertDeclArgsNil :: ConvertDeclArgs Nil Nil
 instance convertDeclArgsCons :: ConvertDeclArgs ldecl largs
   => ConvertDeclArgs (Cons k (ObjectTypeFieldArg a) ldecl) (Cons k a largs)
 
-foreign import _objectType :: ∀ a ctx fields.
-  Fn3 String (Nullable String) (Record fields) (ObjectType ctx a)
-
 foreign import _schema :: ∀ a ctx.
   Fn2
     (ObjectType ctx (Maybe a))
     (Nullable (ObjectType ctx (Maybe a)))
     (Schema ctx a)
+
+foreign import _objectType :: ∀ a ctx fields.
+  Fn3 String (Nullable String) (Record fields) (ObjectType ctx a)
 
 boundField :: ∀ t a b decl args ctx.
   Fn4
