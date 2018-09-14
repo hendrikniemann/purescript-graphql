@@ -51,7 +51,7 @@ exports._field = function(toNullable, toMaybe) {
   function transformArg(arg, type) {
     if (G.isNonNullType(type)) {
       if (G.isInputObjectType(type.ofType)) {
-        return transformArgs(arg, type.ofType.getFieldMap());
+        return transformArgs(arg, type.ofType.getFields());
       } else if (G.isListType(type.ofType)) {
         return arg.map(function(elem) {
           return transformArg(elem, type.ofType.ofType);
@@ -60,7 +60,7 @@ exports._field = function(toNullable, toMaybe) {
       return arg;
     }
     if (G.isInputObjectType(type)) {
-      return toMaybe(transformArgs(arg, type.getFieldMap()) || null);
+      return toMaybe(transformArgs(arg, type.getFields()) || null);
     } else if (G.isListType(type)) {
       return toMaybe(
         value.map(function(value) {
@@ -110,4 +110,18 @@ exports._inputField = function(type, description) {
     type: type,
     description: description || undefined
   };
+};
+
+exports._enumType = function(name, description, values) {
+  const config = { name: name, values: {} };
+
+  values.forEach(function(value) {
+    config.values[value.name] = {
+      description: value.description || undefined,
+      value: value.value,
+      deprecationReason: value.deprecationReason || undefined
+    };
+  });
+
+  return new G.GraphQLEnumType(config);
 };

@@ -1,5 +1,7 @@
 module GraphQL.Type
        ( Schema
+       , EnumType
+       , EnumValue
        , ObjectType
        , ObjectTypeField
        , ObjectTypeFieldArg
@@ -17,6 +19,8 @@ module GraphQL.Type
        , list
        , nonNull
        , schema
+       , enumType
+       , enumValue
        , objectType
        , field
        , field'
@@ -32,6 +36,8 @@ module GraphQL.Type
 import Prelude
 
 import Control.Promise (Promise, fromAff)
+import Data.Array (fromFoldable)
+import Data.Foldable (class Foldable)
 import Data.Function.Uncurried (Fn2, Fn3, Fn4, runFn2, runFn3, runFn4)
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe, toNullable)
@@ -50,6 +56,9 @@ foreign import data ObjectType :: Type -> Type -> Type
 
 -- | A GraphQL scalar type
 foreign import data ScalarType :: Type -> Type
+
+-- | A GraphQL enum type
+foreign import data EnumType :: Type -> Type
 
 -- | The configuration of a field represented in native JavaScript
 foreign import data ObjectTypeField :: Type -> Type -> Type
@@ -71,15 +80,21 @@ class GraphQLType a
 
 instance scalarTypeGraphQLType :: GraphQLType (ScalarType a)
 
+instance enumTypeGraphQLType :: GraphQLType (EnumType a)
+
 instance objectTypeGraphQLType :: GraphQLType (ObjectType ctx a)
 
 instance listTypeGraphQLType :: GraphQLType (ListType a)
+
+instance inputObjectTypeGraphQLType :: GraphQLType (InputObjectType a)
 
 -- | A type class defining which types are output types and at the same time
 -- | ensuring that the specific output type is bound to a certain context type.
 class (GraphQLType a) <= OutputType a ctx
 
 instance scalarTypeOutputType :: OutputType (ScalarType a) ctx
+
+instance enumTypeOutputType :: OutputType (EnumType a) ctx
 
 instance objectTypeOutputType :: OutputType (ObjectType ctx a) ctx
 else instance objectTypeOutputTypeFail
@@ -95,11 +110,15 @@ instance listTypeOutputType
   => OutputType (ListType (Array a)) ctx
 
 -- | A type class defining which types are input types
-class InputType a
+class (GraphQLType a) <= InputType a
 
 instance scalarTypeInputType :: InputType (ScalarType a)
 
 instance listTypeInputType :: (InputType a) => InputType (ListType (Array a))
+
+instance enumTypeInputType :: InputType (EnumType a)
+
+instance inputObjectTypeInputType :: InputType (InputObjectType a)
 
 foreign import float :: ScalarType (Maybe Number)
 
@@ -119,6 +138,37 @@ schema :: ∀ a ctx.
   ObjectType ctx (Maybe a) -> Maybe (ObjectType ctx (Maybe a)) -> Schema ctx a
 schema query mutation = runFn2 _schema query $ toNullable mutation
 
+-- | A type to store enum value configurations in
+newtype EnumValue a = EnumValue
+    { name :: String
+    , description :: Nullable String
+    , value :: a
+    }
+
+-- | Create a new enum type. The enum type takes a name, an optional description
+-- | and a Folable of enum values.
+-- | _Example:_
+-- | ```purescript
+-- | data Status = Processing | Ready
+-- |
+-- | statusType :: EnumType Status
+-- | statusType = enumType
+-- |   "Status"
+-- |   (Just "This type indicates the status of a request.")
+-- |   [ enumValue "PROCESSING" (Just "In the process.") Processing
+-- |   , enumValue "READY" (Just "Completed and ready.") Ready
+-- |   ]
+-- | ```
+enumType :: ∀ f a. (Foldable f)
+  => String -> Maybe String -> f (EnumValue a) -> EnumType (Maybe a)
+enumType name description values =
+  runFn3 _enumType name (toNullable description) (fromFoldable values)
+
+-- | Create a new enum value to use in an enum type definition
+enumValue :: ∀ a. String -> Maybe String -> a -> EnumValue a
+enumValue name description value =
+  EnumValue { name, description: toNullable description, value }
+
 -- | Create a new object type with the following properties:
 -- | - `name` is the name of the object in the schema
 -- | - `description` is the description of the type
@@ -129,7 +179,7 @@ objectType :: ∀ a ctx fields. Homogeneous fields (ObjectTypeField ctx a)
   -> Record fields
   -> ObjectType ctx (Maybe a)
 objectType name description =
-    runFn3 _objectType name $ toNullable description
+  runFn3 _objectType name $ toNullable description
 
 -- | Create a simple field without arguments using
 -- | - `type` the type of the field
@@ -153,8 +203,8 @@ field' :: ∀ t a b ctx. OutputType (t b) ctx
   -> (a -> ctx -> Aff b)
   -> ObjectTypeField ctx a
 field' t description resolve =
-    runFn4 boundField t (toNullable description) {} $
-      \parent _ ctx -> fromAff $ resolve parent ctx
+  runFn4 boundField t (toNullable description) {} $
+    \parent _ ctx -> fromAff $ resolve parent ctx
 
 -- | Create a field with the specified arguments
 -- | 
@@ -167,7 +217,7 @@ field :: ∀ t a b ctx decl args. OutputType (t b) ctx
   -> ObjectTypeField ctx a
 field t description args resolve =
   runFn4 boundField t (toNullable description) args $
-      \parent a ctx -> fromAff $ resolve parent a ctx
+    \parent a ctx -> fromAff $ resolve parent a ctx
 
 -- | Create a single argument that can be used inside an argument declaration
 argument :: ∀ t a. InputType (t a)
@@ -239,6 +289,9 @@ foreign import _schema :: ∀ a ctx.
     (ObjectType ctx (Maybe a))
     (Nullable (ObjectType ctx (Maybe a)))
     (Schema ctx a)
+
+foreign import _enumType :: ∀ a.
+  Fn3 String (Nullable String) (Array (EnumValue a)) (EnumType (Maybe a))
 
 foreign import _objectType :: ∀ a ctx fields.
   Fn3 String (Nullable String) (Record fields) (ObjectType ctx a)
