@@ -44,7 +44,7 @@ import Data.Nullable (Nullable, toMaybe, toNullable)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Prim.RowList (kind RowList, Cons, Nil)
-import Prim.TypeError (class Fail, Text, Above, Beside, Quote)
+import Prim.TypeError (class Fail, class Warn, Text, Above, Beside, Quote)
 import Type.Prelude (class RowToList, class ListToRow)
 import Type.Row.Homogeneous (class Homogeneous)
 
@@ -271,9 +271,7 @@ class ArgDeclarationToArgs
 
 instance argDeclarationToArgsImpl
   :: ( RowToList decl ldecl
-     , RowToList args largs
      , ConvertDeclArgs ldecl largs
-     , ListToRow ldecl decl
      , ListToRow largs args )
   => ArgDeclarationToArgs decl args
 
@@ -283,6 +281,22 @@ instance convertDeclArgsNil :: ConvertDeclArgs Nil Nil
 
 instance convertDeclArgsCons :: ConvertDeclArgs ldecl largs
   => ConvertDeclArgs (Cons k (ObjectTypeFieldArg a) ldecl) (Cons k a largs)
+
+-- The function can also consume less arguments than specified
+else instance convertDeclArgsConsWarn
+  :: Warn (Beside
+    (Text "Field defines argument ")
+    (Beside (Text k) (Text " but resolver does not use the argument.")))
+  => ConvertDeclArgs (Cons k (ObjectTypeFieldArg a) taildecl) Nil
+
+-- But we cannot use arguments that don't exist in the declaration
+else instance convertDeclArgsConsFail
+  :: Fail (Above
+    (Beside
+      (Beside (Text "Reolver function expects argument ") (Text k))
+      (Beside (Text " of type ") (Quote a)))
+    (Text "But the argument declaration does not contain this argument."))
+  => ConvertDeclArgs Nil (Cons k a largs)
 
 foreign import _schema :: ∀ a ctx.
   Fn2
