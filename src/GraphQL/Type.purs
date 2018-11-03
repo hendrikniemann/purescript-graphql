@@ -44,7 +44,7 @@ import Data.Nullable (Nullable, toMaybe, toNullable)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Prim.RowList (kind RowList, Cons, Nil)
-import Prim.TypeError (class Fail, class Warn, Text, Above, Beside, Quote)
+import Prim.TypeError (class Fail, Above, Beside, Quote, Text)
 import Type.Prelude (class RowToList, class ListToRow)
 import Type.Row.Homogeneous (class Homogeneous)
 
@@ -188,14 +188,14 @@ objectType name description =
 -- |
 -- | *Examples*
 -- | ``` purescript
--- | hello :: Field Unit
--- | hello = field' string Nothing \_ -> pure "Hello World"
+-- | hello :: Field Unit Context
+-- | hello = field' string Nothing \_ _ -> pure "Hello World"
 -- |
 -- | type User = { name :: String, age :: Int }
--- | age :: Field User
+-- | age :: Field User Context
 -- | age = field' intScalar (Just "Age of the user") resolve
 -- |   where
--- |     resolve user = pure user.age
+-- |     resolve user _ = pure user.age
 -- | ```
 field' :: ∀ t a b ctx. OutputType (t b) ctx
   => t b
@@ -206,8 +206,16 @@ field' t description resolve =
   runFn4 boundField t (toNullable description) {} $
     \parent _ ctx -> fromAff $ resolve parent ctx
 
--- | Create a field with the specified arguments
--- | 
+-- | Create a field with the specified arguments using
+-- | - `type`: The type of the field, must be an output type
+-- | - `description`: The description of the field shown during introspection
+-- | - `args`: The arguments definition that this field takes. For fields
+-- |   without arguments use the `field'` function.
+-- | - `resolve`: The resolver function
+-- |
+-- | The resolver function's arguments must be in a specific relationship with
+-- | the `args` argument. This relationship is ensured by the 
+-- | `ArgDeclarationToArgs` type class.
 field :: ∀ t a b ctx decl args. OutputType (t b) ctx
   => ArgDeclarationToArgs decl args
   => t b
@@ -226,6 +234,13 @@ argument :: ∀ t a. InputType (t a)
   -> ObjectTypeFieldArg a
 argument t description = runFn2 _argument t $ toNullable description
 
+-- | Create a new input object type. Input object types three arguments
+-- | - `name`: The name of the input type that will show up to the consumer
+-- | - `description`: An optional description that shows during introspection
+-- | - `fields`: A homogenious record of `InputObjectTypeField`s
+-- |
+-- | From the fields it is possible to determine the resulting type of the input
+-- | using a type class contraint.
 inputObjectType :: ∀ a r. InputFieldsToReturnType r a
   => String
   -> Maybe String
@@ -234,6 +249,10 @@ inputObjectType :: ∀ a r. InputFieldsToReturnType r a
 inputObjectType name description fields =
   runFn3 _inputObjectType name (toNullable description) fields
 
+-- | Create a simple input field with
+-- | - `type`: The type of this field
+-- | - `description`: A description that will show up for this field during
+-- |   introspection
 inputField :: ∀ t a. InputType (t a)
   => (t a)
   -> (Maybe String)
@@ -253,7 +272,10 @@ instance inputFieldToReturnTypeImpl
      , ListToRow lreturn return)
   => InputFieldsToReturnType input return
 
-class ConvertInputReturn (linput :: RowList) (lreturn :: RowList)
+class ConvertInputReturn
+  (linput :: RowList)
+  (lreturn :: RowList)
+  | linput -> lreturn
 
 instance convertInputReturnNil :: ConvertInputReturn Nil Nil
 
@@ -275,28 +297,15 @@ instance argDeclarationToArgsImpl
      , ListToRow largs args )
   => ArgDeclarationToArgs decl args
 
-class ConvertDeclArgs (ldecl :: RowList) (largs :: RowList)
+class ConvertDeclArgs
+  (ldecl :: RowList)
+  (largs :: RowList)
+  | ldecl -> largs, largs -> ldecl
 
 instance convertDeclArgsNil :: ConvertDeclArgs Nil Nil
 
 instance convertDeclArgsCons :: ConvertDeclArgs ldecl largs
   => ConvertDeclArgs (Cons k (ObjectTypeFieldArg a) ldecl) (Cons k a largs)
-
--- The function can also consume less arguments than specified
-else instance convertDeclArgsConsWarn
-  :: Warn (Beside
-    (Text "Field defines argument ")
-    (Beside (Text k) (Text " but resolver does not use the argument.")))
-  => ConvertDeclArgs (Cons k (ObjectTypeFieldArg a) taildecl) Nil
-
--- But we cannot use arguments that don't exist in the declaration
-else instance convertDeclArgsConsFail
-  :: Fail (Above
-    (Beside
-      (Beside (Text "Reolver function expects argument ") (Text k))
-      (Beside (Text " of type ") (Quote a)))
-    (Text "But the argument declaration does not contain this argument."))
-  => ConvertDeclArgs Nil (Cons k a largs)
 
 foreign import _schema :: ∀ a ctx.
   Fn2
