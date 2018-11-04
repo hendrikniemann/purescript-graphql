@@ -1,7 +1,7 @@
 module GraphQL.Validation (validate) where
 
 import Data.Function.Uncurried (Fn2, runFn2)
-import Effect.Exception (Error)
+import Effect.Aff (Error)
 import GraphQL.Document (Document)
 import GraphQL.Type (Schema)
 

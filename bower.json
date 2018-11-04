@@ -1,5 +1,7 @@
 {
   "name": "purescript-graphql",
+  "version": "1.0.0-rc1",
+  "license": "MIT",
   "ignore": [
     "**/.*",
     "node_modules",
@@ -14,9 +16,14 @@
     "purescript-aff": "^5.0.1",
     "purescript-aff-promise": "^2.0.0",
     "purescript-nullable": "^4.0.0",
-    "purescript-argonaut-core": "^4.0.1"
+    "purescript-argonaut-core": "^4.0.1",
+    "purescript-maybe": "^4.0.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hendrikniemann/purescript-graphql.git"
   }
 }
