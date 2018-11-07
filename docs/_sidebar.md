@@ -4,4 +4,5 @@
   - [Getting Started](getting_started.md)
   - [Schema and Execution](schema_and_execution.md)
   - [Building the HTTP server](http_server.md)
-  - [Object Types](object_types.md)
+  - [The Execution Context](context.md)
+  - [GraphQL Type System](type_system.md)
