@@ -16,6 +16,7 @@ module GraphQL.Type
        , id
        , int
        , string
+       , boolean
        , list
        , nonNull
        , schema
@@ -67,7 +68,7 @@ foreign import data ObjectTypeField :: Type -> Type -> Type
 foreign import data ObjectTypeFieldArg :: Type -> Type
 
 -- | A GraphQL list type
-foreign import data ListType :: Type -> Type
+foreign import data ListType :: Type -> Type -> Type
 
 -- | An input object type to create complex input objects
 foreign import data InputObjectType :: Type -> Type
@@ -84,7 +85,7 @@ instance enumTypeGraphQLType :: GraphQLType (EnumType a)
 
 instance objectTypeGraphQLType :: GraphQLType (ObjectType ctx a)
 
-instance listTypeGraphQLType :: GraphQLType (ListType a)
+instance listTypeGraphQLType :: GraphQLType (ListType t a)
 
 instance inputObjectTypeGraphQLType :: GraphQLType (InputObjectType a)
 
@@ -105,16 +106,23 @@ else instance objectTypeOutputTypeFail
       (Beside (Text "But received constext type: ") (Quote actual))))
   => OutputType (ObjectType actual a) expected
 
+instance listTypeMaybeOutputType
+  :: (OutputType t ctx)
+  => OutputType (ListType t (Maybe (Array a))) ctx
+
 instance listTypeOutputType
-  :: (OutputType a ctx)
-  => OutputType (ListType (Array a)) ctx
+  :: (OutputType t ctx)
+  => OutputType (ListType t (Array a)) ctx
 
 -- | A type class defining which types are input types
 class (GraphQLType a) <= InputType a
 
 instance scalarTypeInputType :: InputType (ScalarType a)
 
-instance listTypeInputType :: (InputType a) => InputType (ListType (Array a))
+instance listTypeInputType :: (InputType t) => InputType (ListType t (Array a))
+
+instance listTypeMaybeInputType
+  :: (InputType t) => InputType (ListType t (Maybe (Array a)))
 
 instance enumTypeInputType :: InputType (EnumType a)
 
@@ -128,7 +136,9 @@ foreign import string :: ScalarType (Maybe String)
 
 foreign import id :: ScalarType (Maybe String)
 
-foreign import list :: ∀ t a. GraphQLType (t a) => t a -> ListType (Maybe (Array a))
+foreign import boolean :: ScalarType (Maybe Boolean)
+
+foreign import list :: ∀ t a. GraphQLType (t a) => t a -> ListType (t a) (Maybe (Array a))
 
 foreign import nonNull :: ∀ t a. GraphQLType (t (Maybe a)) => t (Maybe a) -> t a
 

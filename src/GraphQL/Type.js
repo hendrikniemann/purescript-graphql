@@ -8,6 +8,8 @@ exports.string = G.GraphQLString;
 
 exports.id = G.GraphQLID;
 
+exports.boolean = G.GraphQLBoolean;
+
 exports.list = function() {
   return function(type) {
     return new G.GraphQLList(type);

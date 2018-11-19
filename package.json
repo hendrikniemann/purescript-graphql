@@ -1,0 +1,36 @@
+{
+  "name": "purescript-graphql",
+  "version": "1.0.0",
+  "description": "PureScript GraphQL wrapper",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "example": "example"
+  },
+  "dependencies": {
+    "graphql": "^0.13.2"
+  },
+  "devDependencies": {
+    "docsify-cli": "^4.3.0"
+  },
+  "scripts": {
+    "test": "pulp test",
+    "docs": "docsify serve docs/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hendrikniemann/purescript-graphql.git"
+  },
+  "keywords": [
+    "purescript",
+    "graphql",
+    "typesafety",
+    "api"
+  ],
+  "author": "hendrikniemann",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/hendrikniemann/purescript-graphql/issues"
+  },
+  "homepage": "https://github.com/hendrikniemann/purescript-graphql#readme"
+}
