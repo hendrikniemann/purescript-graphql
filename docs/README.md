@@ -2,7 +2,7 @@
 
 ## About PureScript GraphQL
 
-This is a tutorial on Purescript GraphQL (`purescript-graphql`), a wrapper for PureScript around the JavaScript GraphQL reference implementation [GraphQL.js](https://github.com/graphql/graphql-js) (`graphql-js`) initially developed by Facebook. The JavaScript ecosystem is definitely the most prominent one around GraphQL (even though historically neither the first client nor the first server implementation was written in JavaScript). With PureScript we can make use of the JavaScript ecosytem while at the same time enjoying typesafty and all the programming patterns we love (and hate) from pure functional programming.
+This is a tutorial on Purescript GraphQL (`purescript-graphql`), a wrapper for PureScript around the JavaScript GraphQL reference implementation [GraphQL.js](https://github.com/graphql/graphql-js) (`graphql-js`) initially developed by Facebook. The JavaScript ecosystem is definitely the most prominent one around GraphQL (even though historically neither the first client nor the first server implementation was written in JavaScript). With PureScript we can make use of the JavaScript ecosytem while at the same time enjoying typesafety and all the programming patterns we love (and hate) from pure functional programming.
 
 To make the use of PureScript GraphQL more idomatic it does a few type conversions. While GraphQL.js works with JavaScript's Promises, the PureScript ecosystem favours the Aff monad. Furthermore nullable values are converted to `Maybe`s. These conversions come at a price but should still be worth it compared to a full PureScript GraphQL implementation since the whole parsing and execution engine is written in JavaScript and should be very fast.
 

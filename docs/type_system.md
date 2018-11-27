@@ -52,3 +52,34 @@ postType =
           (\parent _ -> pure parent.content)
     }
 ```
+
+## Object Type Fields
+
+Object types define their fields in a heterogeneous record type. Each field must have the same context and root value type. Field can have arguments. If we don't want to supply any arguments we can use the function `field'` from `GraphQL.Type`.
+
+```purescript
+id :: GraphQL.ObjectTypeField Unit Post
+id =
+  GraphQL.field'
+    (GraphQL.nonNull GraphQL.id) -- The return type of this field
+    (Just "A unique id for this blog post.") -- The description
+    (\parent _ -> pure parent.id) -- The resolver
+```
+
+It takes a closer look to unravel the type dependencies that make PureScript GraphQL fully type safe.
+
+```purescript
+field' :: ∀ t a b ctx. OutputType (t b) ctx
+  => t b
+  -> Maybe String
+  -> (a -> ctx -> Aff b)
+  -> ObjectTypeField ctx a
+```
+
+`field'` takes the following arguments:
+
+1. A return type that is an output type in the context of the field's context
+1. A descripion
+1. A resolver function that takes the root value and the context of the request and returns an asyncronious effect that resolves to the return type's root value type
+
+This makes a few szenarios impossible that are possible with the GraphQL.js and Flow types. First we cannot write resolvers that take a different parent value than the other resolvers. All resolvers need to have the same type for this value. The same holds for the context type. All fields use the same context and we can only compose types that have the same context type in a single schema. Also resolvers must return a value of the type that the field's result type accepts as root value. This way the whole execution flow is statically type checked.
