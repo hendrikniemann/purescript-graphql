@@ -61,16 +61,19 @@ exports._field = function(toNullable, toMaybe) {
       }
       return arg;
     }
+    if (typeof arg === 'undefined' || arg === null) {
+      return toMaybe(null);
+    }
     if (G.isInputObjectType(type)) {
-      return toMaybe(transformArgs(arg, type.getFields()) || null);
+      return toMaybe(transformArgs(arg, type.getFields()));
     } else if (G.isListType(type)) {
       return toMaybe(
         value.map(function(value) {
           return transformArg(value, type.ofType);
-        }) || null
+        })
       );
     }
-    return toMaybe(arg || null);
+    return toMaybe(arg);
   }
 
   return function(type, description, argDef, resolve) {
