@@ -82,7 +82,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Aff (runAff_)
-import Effect.Console (log, error)
+import Effect.Console as Console
 import GraphQL (graphql)
 import Schema (schema)
 
@@ -90,8 +90,8 @@ main :: Effect Unit
 main = runAff_ logResult $
   graphql schema "{ helloWorld }" unit unit Nothing Nothing
     where
-      logResult (Left error)   = error $ show error
-      logResult (Right result) = log $ stringify result
+      logResult (Left error)   = Console.error $ show error
+      logResult (Right result) = Console.log $ stringify result
 ```
 
 The `graphql` function takes a lot of arguments. All these arguments are required to execute a query.
