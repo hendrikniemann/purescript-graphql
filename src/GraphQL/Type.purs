@@ -128,18 +128,48 @@ instance enumTypeInputType :: InputType (EnumType a)
 
 instance inputObjectTypeInputType :: InputType (InputObjectType a)
 
+-- | The GraphQL scalar for floating point numbers.
+-- |
+-- | Equivalent to JavaScript's `GraphQLFloat`
 foreign import float :: ScalarType (Maybe Number)
 
+-- | The GraphQL scalar for integer values.
+-- |
+-- | Equivalent to JavaScript's `GraphQLInt`
 foreign import int :: ScalarType (Maybe Int)
 
+-- | The GraphQL scalar for strings.
+-- |
+-- | Equivalent to JavaScript's `GraphQLString`
 foreign import string :: ScalarType (Maybe String)
 
+-- | The GraphQL scalar for IDs. IDs are represented and persisted as strings
+-- | but can also be parsed from a number in the GraphQL document.
+-- |
+-- | Equivalent to JavaScript's `GraphQLID`
 foreign import id :: ScalarType (Maybe String)
 
+-- | The GraphQL scalar for boolean values.
+-- |
+-- | Equivalent to JavaScript's `GraphQLBoolean`
 foreign import boolean :: ScalarType (Maybe Boolean)
 
-foreign import list :: ∀ t a. GraphQLType (t a) => t a -> ListType (t a) (Maybe (Array a))
+-- | This function is used to create list types. A list type accepts an array of
+-- | values and returns them as a JSON array in the response.
+-- |
+-- | Equivalent to JavaScript's `new GraphQLList(...)`
+foreign import list ::
+  ∀ t a. GraphQLType (t a) => t a -> ListType (t a) (Maybe (Array a))
 
+-- | This function transforms any nullable type into a non-nullable type
+-- | Doing so also influences the types accepted root value
+-- |
+-- | ```purescript
+-- | nonNullableString :: ScalarType String
+-- | nonNullableString = nonNull string
+-- | ```
+-- |
+-- | Equivalent to JavaScript's `new GraphQLNonNull(...)`
 foreign import nonNull :: ∀ t a. GraphQLType (t (Maybe a)) => t (Maybe a) -> t a
 
 -- | Create a schema given a root query object type and a root mutation type.
@@ -148,7 +178,8 @@ schema :: ∀ a ctx.
   ObjectType ctx (Maybe a) -> Maybe (ObjectType ctx (Maybe a)) -> Schema ctx a
 schema query mutation = runFn2 _schema query $ toNullable mutation
 
--- | A type to store enum value configurations in
+-- | A type to store enum value configurations. Create new values using the
+-- | `enumValue` function.
 newtype EnumValue a = EnumValue
     { name :: String
     , description :: Nullable String
@@ -174,7 +205,8 @@ enumType :: ∀ f a. (Foldable f)
 enumType name description values =
   runFn3 _enumType name (toNullable description) (fromFoldable values)
 
--- | Create a new enum value to use in an enum type definition
+-- | Create a new enum value to use in an enum type definition. See `enumType` 
+-- | for an example.
 enumValue :: ∀ a. String -> Maybe String -> a -> EnumValue a
 enumValue name description value =
   EnumValue { name, description: toNullable description, value }
@@ -237,7 +269,12 @@ field t description args resolve =
   runFn4 boundField t (toNullable description) args $
     \parent a ctx -> fromAff $ resolve parent a ctx
 
--- | Create a single argument that can be used inside an argument declaration
+-- | Create a single argument that can be used inside an argument declaration.
+-- | Find a complete example in the documentation of the `field` function.
+-- |
+-- | ```purescript
+-- | argument (nonNull string) (Just "Some description.")
+-- | ```
 argument :: ∀ t a. InputType (t a)
   => t a
   -> Maybe String
