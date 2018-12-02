@@ -20,7 +20,7 @@ main :: HTTPure.ServerM
 main = HTTPure.serve 8080 router $ Console.log "Running server..."
 ```
 
-The body of the request that our server accepts has to be in JSON format. Now that we have the body of the request we can try and parse it. The body *must* contain the `query` variable and additionally may also contain `variables` and `operationName`. We will write a function `decodeParams` that takes a JSON value and returns a record containing the important GraphQL request parameters.
+The body of the request that our server accepts has to be in JSON format. Now that we have the body of the request we can try and parse it. The body _must_ contain the `query` variable and additionally may also contain `variables` and `operationName`. We will write a function `decodeParams` that takes a JSON value and returns a record containing the important GraphQL request parameters.
 
 ```purescript
 import Data.Argonaut.Core (Json)
@@ -54,4 +54,4 @@ router { body, method: HTTPure.Post, path: [ "graphql" ] } =
 router _ = HTTPure.notFound
 ```
 
-This is it. Start the server with `pulp run` and connect to it using a desktop installation [GraphQL Playground](https://github.com/prisma/graphql-playground) on `http://localhost:8080/graphql`. You should now be able to run the hello world query inside of playground.
+This is it. Start the server with `pulp run` and connect to it using a desktop installation of [GraphQL Playground](https://github.com/prisma/graphql-playground) on `http://localhost:8080/graphql`. You should now be able to run the hello world query inside of playground.

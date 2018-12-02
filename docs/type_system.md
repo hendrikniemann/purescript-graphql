@@ -53,6 +53,8 @@ postType =
     }
 ```
 
+Go ahead and save this type in a new module `Schema.Post`. We will need it later.
+
 ## Object Type Fields
 
 Object types define their fields in a heterogeneous record type. Each field must have the same context and root value type. Field can have arguments. If we don't want to supply any arguments we can use the function `field'` from `GraphQL.Type`.
@@ -83,3 +85,36 @@ field' :: ∀ t a b ctx. OutputType (t b) ctx
 1. A resolver function that takes the root value and the context of the request and returns an asyncronious effect that resolves to the return type's root value type
 
 This makes a few szenarios impossible that are possible with the GraphQL.js and Flow types. First we cannot write resolvers that take a different parent value than the other resolvers. All resolvers need to have the same type for this value. The same holds for the context type. All fields use the same context and we can only compose types that have the same context type in a single schema. Also resolvers must return a value of the type that the field's result type accepts as root value. This way the whole execution flow is statically type checked.
+
+We can provoke a type error just to show how this would look like: If we change the type of the resolver to `Post -> Unit -> Aff Int` by returning an integer we will get a type error - _Could not match type Int with type String_. Not very exciting when you are used to PureScript but this has spawned [whole code generation projects](https://github.com/prisma/graphqlgen) for TypeScript. The resolver type is even fully infered when you want to supply field arguments.
+
+This takes us to our next topic. For our blog we want to be able to receive a single blog post by its unique ID. The ID is supplied as a field argument in the GraphQL query.
+
+```graphql
+query getPost {
+  post(id: "daa026e0-4852-415f-bbc2-9885f81a76a3") {
+    id
+    title
+    content
+  }
+}
+```
+
+To create this type of GraphQL interface on the server side we modify the `helloWorld` query field to use the `field` function instead. This function expects an additional argument. For arguments we can supply a record of GraphQL arguments. After declaring the argument we are allowed to access the argument in the resolver. The arguments are - again - fully infered and we don't have to write types ourselves to get error messages. Instead a type class contraint will make sure that all the types match within the arguments of the `field` function.
+
+```purescript
+{ post:
+    GraphQL.field
+      postType
+      (Just "Receive a single post from the database.")
+      { id:
+          GraphQL.argument
+            (GraphQL.nonNull GraphQL.id)
+            (Just "A unique id that belongs to a post in the database.")
+      }
+      \_ { id } _ ->
+        pure (Just { id, title: "Hello World", content: "My first post!" })
+}
+```
+
+Safe the query module and restart the server. You should now be able to execute the above and receive a post with the supplied ID. In the next chapter we will create an in memory database and adopt the implementation so that it reads from a real store.

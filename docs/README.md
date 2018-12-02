@@ -12,6 +12,8 @@ This tutorial assumes that you are already familiar with some PureScript and the
 
 For this tutorial we will be using PureScript 0.12, Pulp and Bower. You can find out how to install them on the [PureScript website](http://www.purescript.org/). All three of them need [Node.js](http://nodejs.org) and we will also make use of NPM, that comes with Node.js, to install some JavaScript dependencies.
 
+To try out and execute our GraphQL queries we will need a GraphQL client. Theoretically you can use CURL or Postman but I recommend the [GraphQL Playground](https://github.com/prisma/graphql-playground).
+
 ## Why GraphQL
 
 GraphQL is a statically typed query language and since this is a tutorial for PureScript we don't have to discuss the benefits of strong type systems. GraphQL lets us create powerful APIs that are fun to build and fun to use. GraphQL APIs are easy to extend because if we follow a few rules we can make changes without breaking our clients.

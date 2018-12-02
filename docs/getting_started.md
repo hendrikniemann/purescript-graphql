@@ -25,7 +25,7 @@ GraphQL itself does not specify the transportation layer of the client server co
 We will get to know all of these packages in the following chapters. Don't feel lost! To install all the purescript dependencies you can simply go ahead and run this command in your project directory.
 
 ```
-bower install --save purescript-httpure purescript-argonaut-core purescript-argonaut-codecs
+bower install --save purescript-graphql purescript-aff purescript-httpure purescript-argonaut-core purescript-argonaut-codecs
 ```
 
 In this tutorial we don't want to deal with the setup of a real database. Instead we will simply store the application state in memore using a reference to a store datastrucure. `purescript-ref` lets us work with mutable data in a monadic way. In a real project you would use a different package to connect to your database. This means these packages are just for the sake of this tutorial and you can uninstall them once you have connected a different data source.
