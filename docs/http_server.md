@@ -23,6 +23,7 @@ main = HTTPure.serve 8080 router $ Console.log "Running server..."
 The body of the request that our server accepts has to be in JSON format. Now that we have the body of the request we can try and parse it. The body _must_ contain the `query` variable and additionally may also contain `variables` and `operationName`. We will write a function `decodeParams` that takes a JSON value and returns a record containing the important GraphQL request parameters.
 
 ```purescript
+import Data.Maybe (Maybe)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (decodeJson, (.:), (.:?))
 
@@ -44,6 +45,10 @@ decodeParams json = do
 Now it is time to change the router implementation to answer GraphQL requests that are sent over POST.
 
 ```purescript
+import Data.Either (Either(..))
+import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Parser (jsonParser)
+
 router :: HTTPure.Request -> HTTPure.ResponseM
 router { body, method: HTTPure.Post, path: [ "graphql" ] } =
   case jsonParser body >>= decodeParams of
