@@ -23,6 +23,7 @@ module GraphQL.Type
        , enumType
        , enumValue
        , objectType
+       , objectTypeRec
        , field
        , field'
        , argument
@@ -223,6 +224,18 @@ objectType :: ∀ a ctx fields. Homogeneous fields (ObjectTypeField ctx a)
 objectType name description =
   runFn3 _objectType name $ toNullable description
 
+-- | Create a new recursive object type with:
+-- | - `name` is the name of the object in the schema
+-- | - `description` is the description of the type
+-- | - `fields` is a function returning a record of field definitions
+objectTypeRec :: ∀ a ctx fields. Homogeneous fields (ObjectTypeField ctx a)
+  => String
+  -> Maybe String
+  -> (Unit -> Record fields)
+  -> ObjectType ctx (Maybe a)
+objectTypeRec name description =
+  runFn3 _objectType name $ toNullable description
+
 -- | Create a simple field without arguments using
 -- | - `type` the type of the field
 -- | - `description` the description of the field
@@ -364,7 +377,7 @@ foreign import _enumType :: ∀ a.
   Fn3 String (Nullable String) (Array (EnumValue a)) (EnumType (Maybe a))
 
 foreign import _objectType :: ∀ a ctx fields.
-  Fn3 String (Nullable String) (Record fields) (ObjectType ctx a)
+  Fn3 String (Nullable String) fields (ObjectType ctx a)
 
 boundField :: ∀ t a b decl args ctx.
   Fn4
