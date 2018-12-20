@@ -136,3 +136,24 @@ To create this type of GraphQL interface on the server side we modify the `hello
 ```
 
 Safe the query module and restart the server. You should now be able to execute the above and receive a post with the supplied ID. In the next chapter we will create an in memory database and adopt the implementation so that it reads from a real store.
+
+## Input object types
+
+Scalar types and enum types can be used as output types (to be returned from a query) as well as as input types (as field arguments inside of the query). Object types and their field resolvers on the other hand are designed to be executed. To also allow for complex inputs in record form GraphQL offers input types. Input object types are very similar to object types, they are just lacking the resolvers.
+
+```purescript
+postDraftType :: GraphQL.InputObjectType (Maybe PostDraft)
+postDraftType =
+  GraphQL.inputObjectType
+    "PostDraft"
+    (Just "A client side version of a post.")
+    { title:
+        GraphQL.inputField
+          (GraphQL.nonNull GraphQL.string)
+          (Just "The title for this post.")
+    , content:
+        GraphQL.inputField
+          (GraphQL.nonNull GraphQL.string)
+          (Just "The context for this post.")
+    }
+```
