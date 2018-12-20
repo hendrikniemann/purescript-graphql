@@ -17,6 +17,24 @@ GraphQL.field'
 
 In GraphQL all types are nullable by default. This is why the type of the `string` scalar function is `Scalar (Maybe String)`. To receive a non-nullable type we have to call the `nonNull` function with the type. `nonNull` supports not only scalar types but any GraphQL type.
 
+## Enum types
+
+Sometimes we have a finite set of values that we want to represent. While we could theoretically build a Scalar that only accepts these values, GraphQL offers enumerations for this particular use case. This allows us to check if a value is allowed at a certain position at the type level. Creating your own enum type is easy in PureScript GraphQL. While in JavaScript enums are by default mapped to strings we have to always define a specific value for the enum value definitions.
+
+```purescript
+data PostStatus = Draft | Published | Archived
+
+postStatusType :: GraphQL.EnumType (Maybe PostStatus)
+postStatusType =
+  GraphQL.enumType
+    "PostStatus"
+    (Just "Describes the current publishing status of a post.")
+    [ GraphQL.enumValue "DRAFT" (Just "This post is not published yet.") Draft
+    , GraphQL.enumValue "PUBLISHED" (Just "This post is public.") Published
+    , GraphQL.enumValue "ARCHIVED" (Just "This post has been archived.") Archived
+    ]
+```
+
 ## Object Types
 
 Object types are GraphQL's equivalent to records. Objects are key-value pairs that map directly to JSON objects. This means that only strings are allowed as keys. Objects don't have to be heterogeneous but must define a type for each paivaluer - just like records in PureScript. Since everything in GraphQL can be annotated with a description we have the ability to supply an optional description to the type as well as the fields. Adding and maintaining a description is considered best practise.
