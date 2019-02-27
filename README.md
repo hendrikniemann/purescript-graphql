@@ -2,7 +2,7 @@
 
 PureScript GraphQL is a wrapper around [GraphQL.js](https://github.com/graphql/graphql-js). It contains powerful, typed bindings that will make building GraphQL servers as typesafe as possible. Furthermore it automatically translates `Aff`s into promises and `Maybe`s into `null` values where they would be expected by the underlying JavaScript implementation.
 
-[![Latest release](http://img.shields.io/github/release/hendrikniemann/purescript-graphql.svg)](https://github.com/hendrikniemann/purescript-graphql/releases)
+[![Latest release](https://img.shields.io/github/release/hendrikniemann/purescript-graphql.svg](https://github.com/hendrikniemann/purescript-graphql/releases)
 [![License](https://img.shields.io/github/license/hendrikniemann/purescript-graphql.svg)](https://github.com/hendrikniemann/purescript-graphql/blob/master/LICENSE)
 
 ## Installation
