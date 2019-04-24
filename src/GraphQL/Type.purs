@@ -101,10 +101,10 @@ instance enumTypeOutputType :: OutputType (EnumType a) ctx
 instance objectTypeOutputType :: OutputType (ObjectType ctx a) ctx
 else instance objectTypeOutputTypeFail
   :: Fail (Above
-    (Text "Cannot use object type with different context as field result.")
+    (Text "Field result type's context needs to match the parent's context!")
     (Above
-      (Beside (Text "Expected context type: ") (Quote expected))
-      (Beside (Text "But received constext type: ") (Quote actual))))
+      (Beside (Text "Parent has context type: ") (Quote expected))
+      (Beside (Text "But field result's context type: ") (Quote actual))))
   => OutputType (ObjectType actual a) expected
 
 instance listTypeMaybeOutputType
