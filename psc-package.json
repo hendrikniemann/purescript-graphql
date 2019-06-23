@@ -1,0 +1,15 @@
+{
+  "name": "purescript-graphql",
+  "set": "psc-0.13.0",
+  "source": "https://github.com/purescript/package-sets.git",
+  "depends": [
+    "argonaut-codecs",
+    "argonaut-core",
+    "nullable",
+    "prelude",
+    "psci-support",
+    "record",
+    "spec",
+    "string-parsers"
+  ]
+}

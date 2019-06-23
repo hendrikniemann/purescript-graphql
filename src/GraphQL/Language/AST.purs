@@ -8,7 +8,7 @@ import Data.List (List)
 import Data.Maybe (Maybe)
 
 data DocumentNode
-  = DocumentNode {definitions :: List DefinitionNode}
+  = DocumentNode { definitions :: List DefinitionNode }
 
 data DefinitionNode
   = OperationDefinitionNode
@@ -25,7 +25,7 @@ data DefinitionNode
     }
 
 data NameNode
-  = NameNode {value :: String}
+  = NameNode { value :: String }
 
 data OperationTypeNode
   = Query
@@ -41,7 +41,7 @@ data VariableDefinitionNode
     }
 
 data SelectionSetNode
-  = SelectionSetNode {selections :: List SelectionNode}
+  = SelectionSetNode { selections :: List SelectionNode }
 
 data SelectionNode
   = FieldNode
@@ -68,15 +68,15 @@ data ArgumentNode
     }
 
 data ValueNode
-  = VariableNode {name :: NameNode}
-  | IntValueNode {value :: String}
-  | FloatValueNode {value :: String}
-  | StringValueNode {value :: String, block :: Boolean}
-  | BooleanValueNode {value :: Boolean}
+  = VariableNode { name :: NameNode }
+  | IntValueNode { value :: String }
+  | FloatValueNode { value :: String }
+  | StringValueNode { value :: String, block :: Boolean }
+  | BooleanValueNode { value :: Boolean }
   | NullValueNode
-  | EnumValueNode {name :: NameNode}
-  | ListValueNode {values :: List ValueNode}
-  | ObjectValueNode {fields :: List ObjectFieldNode}
+  | EnumValueNode { name :: NameNode }
+  | ListValueNode { values :: List ValueNode }
+  | ObjectValueNode { fields :: List ObjectFieldNode }
 
 data ObjectFieldNode
   = ObjectFieldNode

@@ -1,23 +1,14 @@
-module GraphQL
-       ( graphql
-       ) where
+module GraphQL where
+
+import Prelude
 
 import Data.Argonaut.Core (Json)
-import Data.Function.Uncurried (Fn6, runFn6)
-import Data.Maybe (Maybe)
-import Data.Nullable (Nullable, toNullable)
-import Effect.Aff (Aff)
-import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
+import Data.Either (Either)
+import GraphQL.Execution (execute)
+import GraphQL.Language (parse)
 import GraphQL.Type (Schema)
-import Prelude (($))
 
-graphql :: ∀ a b.
-  Schema a b -> String -> b -> a -> Maybe Json -> Maybe String -> Aff Json
-graphql schema query root context variables operationName =
-    fromEffectFnAff $ runFn6 _graphql schema query root context nVariables nOperation
-      where
-        nVariables = toNullable variables
-        nOperation = toNullable operationName
-
-foreign import _graphql :: ∀ a b.
-  Fn6 (Schema a b) String b a (Nullable Json) (Nullable String) (EffectFnAff Json)
+graphql :: ∀ a. Schema a -> String -> a -> Either String Json
+graphql schema query root = do
+  document <- parse query
+  pure $ execute document schema root

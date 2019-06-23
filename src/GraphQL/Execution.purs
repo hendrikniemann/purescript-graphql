@@ -1,16 +1,19 @@
 module GraphQL.Execution (execute) where
 
-import Prelude (($))
-
 import Data.Argonaut.Core (Json)
-import Data.Function.Uncurried (Fn3, runFn3)
-import Effect.Aff (Aff)
-import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
-import GraphQL.Document (Document)
-import GraphQL.Type (Schema)
+import Data.Argonaut.Encode (encodeJson)
+import Data.Either (Either(..), either)
+import Data.List (List(..), (:))
+import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
+import GraphQL.Language.AST (DefinitionNode(..), DocumentNode(..), OperationTypeNode(..))
+import GraphQL.Type (Schema(..), serialize)
+import Prelude (($), identity)
 
--- | Asyncroniously executes a query given the GraphQL document and a schema.
-execute :: ∀ a b. Schema a b -> Document -> a -> Aff Json
-execute scm document root = fromEffectFnAff $ runFn3 _execute scm document root
-
-foreign import _execute :: ∀ a b. Fn3 (Schema a b) Document a (EffectFnAff Json)
+execute :: forall a. DocumentNode -> Schema a -> a -> Json
+execute (DocumentNode { definitions: Cons query Nil }) (Schema s) root =
+  either (\error -> encodeJson (Tuple "error" error : Nil)) identity $ case query of
+    OperationDefinitionNode { operation: Query, selectionSet } ->
+      serialize s.query (Just selectionSet) root
+    _ -> Left "Somehow received non OperationDefinitionNode for operation execution..."
+execute _ _ _ = encodeJson (Tuple "error" "Can only execute documents with single query" : Nil)

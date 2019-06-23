@@ -3,7 +3,7 @@ module Test.Language.Parser.Value where
 import Prelude
 
 import Data.Either (Either(..), isLeft)
-import Data.List (List(..))
+import Data.List (List(..), (:))
 import GraphQL.Language.AST (NameNode(..), ObjectFieldNode(..), ValueNode(..))
 import GraphQL.Language.Parser (value)
 import Test.Spec (Spec, describe, it)
@@ -48,19 +48,19 @@ valueSpec =
       runParser value "WITH0" `shouldEqual` Right (EnumValueNode {name: NameNode {value: "WITH0"}})
     
     it "parses list values" do
-      let listOf1 = (Cons (IntValueNode {value: "1"}) Nil)
+      let listOf1 = IntValueNode {value: "1"} : Nil
       runParser value "[]" `shouldEqual` Right (ListValueNode {values: Nil})
       runParser value "[1]" `shouldEqual` Right (ListValueNode {values: listOf1})
       runParser value "[ 1   ]" `shouldEqual` Right (ListValueNode {values: listOf1})
       runParser value "[2 1]"
         `shouldEqual`
-          Right (ListValueNode {values: Cons (IntValueNode {value: "2"}) listOf1})
+          Right (ListValueNode {values: IntValueNode {value: "2"} : listOf1})
       runParser value "[2, 1]"
         `shouldEqual`
-          Right (ListValueNode {values: Cons (IntValueNode {value: "2"}) listOf1})
+          Right (ListValueNode {values: IntValueNode {value: "2"} : listOf1})
       runParser value "[\"hello\"]"
         `shouldEqual`
-          Right (ListValueNode {values: Cons (StringValueNode {block: false, value: "hello"}) Nil})
+          Right (ListValueNode {values: StringValueNode {block: false, value: "hello"} : Nil})
 
     it "parses input object values" do
       runParser value "{field: 1}"
@@ -68,9 +68,7 @@ valueSpec =
           Right (
             ObjectValueNode
               {fields:
-                  Cons
-                    (ObjectFieldNode { name: NameNode { value: "field" }, value: IntValueNode {value: "1"}})
-                    Nil
+                  ObjectFieldNode { name: NameNode { value: "field" }, value: IntValueNode {value: "1"}} : Nil
               }
           )
       runParser value "{field1: 1.3, field2: null}"
@@ -78,11 +76,8 @@ valueSpec =
           Right (
             ObjectValueNode
               { fields:
-                  Cons
-                    (ObjectFieldNode { name: NameNode { value: "field1" }, value: FloatValueNode {value: "1.3" }})
-                    (Cons
-                      (ObjectFieldNode { name: NameNode { value: "field2" }, value: NullValueNode})
-                      Nil
-                    )
+                  ObjectFieldNode { name: NameNode { value: "field1" }, value: FloatValueNode {value: "1.3" }}
+                  : ObjectFieldNode { name: NameNode { value: "field2" }, value: NullValueNode}
+                  : Nil
               }
           )
