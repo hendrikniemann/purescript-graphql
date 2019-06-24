@@ -13,7 +13,7 @@ import Prelude hiding (between)
 import Control.Alt ((<|>))
 import Control.Lazy (defer)
 import Data.List (List(..), reverse, toUnfoldable)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String.CodeUnits (fromCharArray)
 import GraphQL.Language.AST as AST
 import Prim.TypeError (class Warn, Text)
@@ -61,15 +61,19 @@ document = AST.DocumentNode <<< {definitions: _} <$> many definition
 
 definition :: Parser AST.DefinitionNode
 definition = do
-  op <- toOperation <$> (token "query" <|> token "mutation")
-  n <- optionMaybe $ name <* whiteSpace
+  header <- optionMaybe operationHeader
   v <- variableDefinitionList <* whiteSpace <|> pure Nil
   s <- selectionSet
-  pure $ AST.OperationDefinitionNode {name: n, operation: op, selectionSet: s, variableDefinitions: Nil }
+  let { op, n } = fromMaybe { op: AST.Query, n: Nothing } header
+  pure $ AST.OperationDefinitionNode {name: n, operation: op, selectionSet: s, variableDefinitions: v }
     where
     toOperation "query" = AST.Query
     toOperation _ = AST.Mutation
     variableDefinitionList = parens $ many (whiteSpace *> variableDefinition <* whiteSpace)
+    operationHeader = do
+      op <- toOperation <$> (token "query" <|> token "mutation")
+      n <- optionMaybe $ name <* whiteSpace
+      pure { op, n }
 
 variableDefinition :: Parser AST.VariableDefinitionNode
 variableDefinition = do

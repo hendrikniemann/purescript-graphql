@@ -2,7 +2,6 @@ module GraphQL.Language.AST where
 
 import Prelude
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Show (genericShow)
 import Data.List (List)
 import Data.Maybe (Maybe)
@@ -100,8 +99,7 @@ data SimpleNamedTypeNode
 
 derive instance genericDocumentNode :: Generic DocumentNode _
 
-instance eqDocumentNode :: Eq DocumentNode where
-  eq = genericEq
+derive instance eqDocumentNode :: Eq DocumentNode
 
 instance showDocumentNode :: Show DocumentNode where
   show = genericShow
@@ -111,84 +109,72 @@ derive instance genericDefinitionNode :: Generic DefinitionNode _
 instance showDefinitionNode :: Show DefinitionNode where
   show = genericShow
 
-instance eqDefinitionNode :: Eq DefinitionNode where
-  eq = genericEq
+derive instance eqDefinitionNode :: Eq DefinitionNode
 
 derive instance genericNameNode :: Generic NameNode _
 
 instance showNameNode :: Show NameNode where
   show = genericShow
 
-instance eqNameNode :: Eq NameNode where
-  eq = genericEq
+derive instance eqNameNode :: Eq NameNode
 
 derive instance genericOperationTypeNode :: Generic OperationTypeNode _
 
 instance showOperationTypeNode :: Show OperationTypeNode where
   show = genericShow
 
-instance eqOperationTypeNode :: Eq OperationTypeNode where
-  eq = genericEq
+derive instance eqOperationTypeNode :: Eq OperationTypeNode
 
 derive instance genericSimpleNamedTypeNode :: Generic SimpleNamedTypeNode _
 
 instance showSimpleNamedTypeNode :: Show SimpleNamedTypeNode where
   show = genericShow
 
-instance eqSimpleNamedTypeNode :: Eq SimpleNamedTypeNode where
-  eq = genericEq
+derive instance eqSimpleNamedTypeNode :: Eq SimpleNamedTypeNode
 
 derive instance genericDirectiveNode :: Generic DirectiveNode _
 
 instance showDirectiveNode :: Show DirectiveNode where
   show = genericShow
 
-instance eqDirectiveNode :: Eq DirectiveNode where
-  eq = genericEq
+derive instance eqDirectiveNode :: Eq DirectiveNode
 
 derive instance genericVariableDefinitionNode :: Generic VariableDefinitionNode _
 
 instance showVariableDefinitionNode :: Show VariableDefinitionNode where
   show = genericShow
 
-instance eqVariableDefinitionNode :: Eq VariableDefinitionNode where
-  eq = genericEq
+derive instance eqVariableDefinitionNode :: Eq VariableDefinitionNode
 
 derive instance genericArgumentNode :: Generic ArgumentNode _
 
-instance eqArgumentNode :: Eq ArgumentNode where
-  eq = genericEq
+derive instance eqArgumentNode :: Eq ArgumentNode
 
 derive instance genericTypeNode :: Generic TypeNode _
 
-instance eqTypeNode :: Eq TypeNode where
-  eq n = genericEq n
+derive instance eqTypeNode :: Eq TypeNode
 
 derive instance genericObjectFieldNode :: Generic ObjectFieldNode _
 
-instance eqObjectFieldNode :: Eq ObjectFieldNode where
-  eq n = genericEq n
+derive instance eqObjectFieldNode :: Eq ObjectFieldNode
 
 derive instance genericSelectionSetNode :: Generic SelectionSetNode _
 
-instance eqSelectionSetNode :: Eq SelectionSetNode where
-  eq = genericEq
+derive instance eqSelectionSetNode :: Eq SelectionSetNode
 
 derive instance genericSelectionNode :: Generic SelectionNode _
 
 instance showSelectionNode :: Show SelectionNode where
   show x = genericShow x
 
-instance eqSelectionNode :: Eq SelectionNode where
-  eq n = genericEq n
+derive instance eqSelectionNode :: Eq SelectionNode
 
 derive instance genericValueNode :: Generic ValueNode _
 
 instance showValueNode :: Show ValueNode where
   show x = genericShow x
 
-instance eqValueNode :: Eq ValueNode where
-  eq n = genericEq n
+derive instance eqValueNode :: Eq ValueNode
 
 instance showArgumentNode :: Show ArgumentNode where
   show = genericShow

@@ -1,4 +1,4 @@
-module Test.Language.Parser.Field where
+module Test.GraphQL.Language.Parser.Field where
 
 import Prelude
 
@@ -28,7 +28,7 @@ baseField =
 
 fieldSpec :: Spec Unit
 fieldSpec =
-  describe "selection parser" do
+  describe "SelectionNode" do
     it "parses a simple field selection" $
       runParser selection "  hello " `shouldEqual` Right (FieldNode baseField)
     it "parses a field with an alias" $

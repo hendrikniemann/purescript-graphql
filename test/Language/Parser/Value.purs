@@ -1,4 +1,4 @@
-module Test.Language.Parser.Value where
+module Test.GraphQL.Language.Parser.Value where
 
 import Prelude
 
@@ -12,7 +12,7 @@ import Text.Parsing.StringParser (runParser)
 
 valueSpec :: Spec Unit
 valueSpec =
-  describe "value parser" do
+  describe "ValueNode" do
     it "parses a variable" $
       runParser value "$hello" `shouldEqual` Right (VariableNode {name: NameNode {value: "hello"}})
 

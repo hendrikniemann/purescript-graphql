@@ -40,7 +40,7 @@ userType =
 
 executionSpec :: Spec Unit
 executionSpec =
-  describe "selection parser" do
+  describe "Executor" do
     it "runs a simple field selection" do
       let result = graphql testSchema "query Test { hello }" "Hendrik"
       let strResult = map stringify result
