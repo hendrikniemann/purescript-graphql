@@ -1,22 +1,18 @@
 # Purescript GraphQL
 
-PureScript GraphQL is a wrapper around [GraphQL.js](https://github.com/graphql/graphql-js). It contains powerful, typed bindings that will make building GraphQL servers as typesafe as possible. Furthermore it automatically translates `Aff`s into promises and `Maybe`s into `null` values where they would be expected by the underlying JavaScript implementation.
+PureScript GraphQL is a [GraphQL](https://graphql.org) implementation written in PureScript. It features a powerful DSL that will make building GraphQL servers as typesafe as possible.
 
-[![Latest release](http://img.shields.io/github/release/hendrikniemann/purescript-graphql.svg)](https://github.com/hendrikniemann/purescript-graphql/releases)
+> ### 🚧 Full rewrite happening 🚧
+>
+> This is a complete rewrite of PureScript GraphQL. If you are looking for version 1 of PureScript GraphQL make sure to check out the [1.0.1 tag](https://github.com/hendrikniemann/purescript-graphql/tree/v1.0.1).
+>
+> Version 2 of PureScript GraphQL will be written in PureScript and no longer depend on the JavaScript implementation under the hood. This is to support user defined execution through deriving from the classic resolver model where child resolvers are only called after the parent value has arrived.
+
 [![License](https://img.shields.io/github/license/hendrikniemann/purescript-graphql.svg)](https://github.com/hendrikniemann/purescript-graphql/blob/master/LICENSE)
 
-## Installation
+## Future API
 
-```bash
-bower install purescript-graphql
-npm install graphql-js
-```
-
-Module documentation is [published on Pursuit](http://pursuit.purescript.org/packages/purescript-graphql).
-
-## Getting started
-
-This is the minimal code that is needed to execute a GraphQL query. If you want to get started with an HTTP server check out the [example repository](https://github.com/hendrikniemann/purescript-graphql-example) or follow along [the tutorial](https://hendrikniemann.github.io/purescript-graphql/#/).
+This is a sneak peak of the future PureScript GraphQL API. If you want to give feedback please open an issue.
 
 ```purescript
 module Main where
@@ -24,30 +20,25 @@ module Main where
 import Prelude
 
 import Data.Argonaut.Core (stringify)
-import Data.Either (either)
-import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Effect.Aff (runAff_)
 import Effect.Console as Console
 import GraphQL (graphql)
 import GraphQL.Type as GraphQL
+import GraphQL.Type.Scalar as Scalar
 
 main :: Effect Unit
-main = runAff_ (either (show >>> Console.error) (stringify >>> Console.log)) $
+main = Console.log $ stringify $
   graphql schema "{ hello }" unit unit Nothing Nothing
+-- {"data":{"hello":"world"}}
 
-schema :: GraphQL.Schema Unit Unit
-schema = GraphQL.schema queryType Nothing
+schema :: GraphQL.Schema Unit
+schema = GraphQL.Schema { query: queryType, mutation: Nothing }
 
-queryType :: GraphQL.ObjectType Unit (Maybe Unit)
+queryType :: GraphQL.ObjectType String
 queryType =
-  GraphQL.objectType
-    "Query"
-    (Just "The main query type")
-    { hello:
-        GraphQL.field'
-          (GraphQL.nonNull GraphQL.string)
-          (Just "A simple field that always returns \"world\".")
-          \_ _ -> pure "world"
-    }
+  GraphQL.objectType "Query"
+    .> "The root query type."
+    :> GraphQL.field "hello" Scalar.string
+      .> "A simple field that always returns \"world\"."
+      !> const "world"
 ```
