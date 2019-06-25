@@ -7,9 +7,7 @@
     "doc": "docs",
     "example": "example"
   },
-  "dependencies": {
-    "graphql": "^0.13.2"
-  },
+  "dependencies": {},
   "devDependencies": {
     "docsify-cli": "^4.3.0"
   },
