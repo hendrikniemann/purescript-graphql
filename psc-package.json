@@ -6,6 +6,7 @@
     "argonaut-codecs",
     "argonaut-core",
     "nullable",
+    "numbers",
     "prelude",
     "psci-support",
     "record",
