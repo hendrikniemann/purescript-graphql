@@ -7,13 +7,13 @@ import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import GraphQL.Language.AST (DefinitionNode(..), DocumentNode(..), OperationTypeNode(..))
-import GraphQL.Type (Schema(..), serialize)
+import GraphQL.Type (Schema(..), VariableMap, output)
 import Prelude (($), identity)
 
-execute :: forall a. DocumentNode -> Schema a -> a -> Json
-execute (DocumentNode { definitions: Cons query Nil }) (Schema s) root =
+execute :: forall a. DocumentNode -> Schema a -> VariableMap -> a -> Json
+execute (DocumentNode { definitions: Cons query Nil }) (Schema s) variables root =
   either (\error -> encodeJson (Tuple "error" error : Nil)) identity $ case query of
     OperationDefinitionNode { operation: Query, selectionSet } ->
-      serialize s.query (Just selectionSet) root
+      output s.query (Just selectionSet) variables root
     _ -> Left "Somehow received non OperationDefinitionNode for operation execution..."
-execute _ _ _ = encodeJson (Tuple "error" "Can only execute documents with single query" : Nil)
+execute _ _ _ _ = encodeJson (Tuple "error" "Can only execute documents with single query" : Nil)
