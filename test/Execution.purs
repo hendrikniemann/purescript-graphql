@@ -4,8 +4,9 @@ import Prelude
 
 import Data.Argonaut.Core (stringify)
 import Data.Either (Either(..))
+import Data.Symbol (SProxy(..))
 import GraphQL (graphql)
-import GraphQL.Type (ObjectType, Schema(..), field, objectType, (:>), (.>), (!>))
+import GraphQL.Type (ObjectType, Schema(..), arg, field, objectType, (!>), (.>), (:>), (?>))
 import GraphQL.Type.Scalar as Scalar
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
@@ -19,11 +20,15 @@ queryType =
     .> "The root query type"
     :> field "hello" Scalar.string
       .> "A simple test field that connects the root string with a greeting."
-      !> (\p -> "Hello " <> p <> "!")
+      !> (\_ p -> "Hello " <> p <> "!")
+    :> field "greet" Scalar.string
+      .> "A field that takes a name and responds with a presonalized greeting."
+      ?> arg Scalar.string (SProxy :: SProxy "name")
+      !> (\{ name } _ -> "Greetings " <> name <> "!")
     :> field "test" Scalar.int
-      !> const 42
+      !> (\_ _ -> 42)
     :> field "nested" userType
-      !> const (User { id: "user1", name: "Hendrik", age: 25 })
+      !> (\_ _ -> User { id: "user1", name: "Hendrik", age: 25 })
 
 newtype User = User { id :: String, name :: String, age :: Int }
 
@@ -32,11 +37,11 @@ userType =
   objectType "User"
     .> "A type for all users in the database"
     :> field "id" Scalar.string
-      !> (\(User user) -> user.id)
+      !> (\_ (User user) -> user.id)
     :> field "name" Scalar.string
-      !> (\(User user) -> user.name)
+      !> (\_ (User user) -> user.name)
     :> field "age" Scalar.int
-      !> (\(User user) -> user.age)
+      !> (\_ (User user) -> user.age)
 
 executionSpec :: Spec Unit
 executionSpec =
@@ -57,3 +62,7 @@ executionSpec =
       let result = graphql testSchema "query Test { nested { id name age } }" ""
       let strResult = map stringify result
       strResult `shouldEqual` Right """{"nested":{"id":"user1","name":"Hendrik","age":25}}"""
+    it "runs an aliased field selection" do
+      let result = graphql testSchema """query Test { greet(name: "Stranger") }""" ""
+      let strResult = map stringify result
+      strResult `shouldEqual` Right """{"greet":"Greetings Hendrik!"}"""
