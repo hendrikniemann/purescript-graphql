@@ -18,13 +18,27 @@ import Type.Row as Row
 import Type.RowList as RL
 import Unsafe.Coerce (unsafeCoerce)
 
+-- | The schema contains the central entry points for GraphQL queries.
+newtype Schema a = Schema { query :: ObjectType a }
+
+-- | The input type class is used for all GraphQL types that can be used as input types.
 class InputType t where
   parseLiteral :: forall a. t a -> AST.ValueNode -> Either String a
   parseValue :: forall a. t a -> Json.Json -> Either String a
 
+-- | The output type class is used for all GraphQL types that can be used as output types.
 class OutputType t where
   serialize :: forall a. t a -> Maybe AST.SelectionSetNode -> a -> Either String Json.Json
 
+-- | Scalar types are the leaf nodes of a GraphQL schema. Scalar types can be serialised into JSON
+-- | or obtained from a JSON when read from the variables provided by a query. Furthermore values
+-- | can be read from literals in a GraphQL document. To create a scalar type a name and optionally
+-- | a description need to be provided.
+-- | The functions `parseLiteral`, `parseValue` and `serialize` are used to convert between the
+-- | GraphQL transport formats and PureScript representations.
+-- |
+-- | The GraphQL PureScript implementation comes with the four default scalars defined in the
+-- | specification.
 newtype ScalarType a =
   ScalarType
     { name :: String
@@ -43,56 +57,7 @@ instance outputTypeScalarType :: OutputType ScalarType where
   serialize _ _ _ = Left "Invalid subselection on scalar type!"
 
 instance showScalarType :: Show (ScalarType a) where
-  show (ScalarType { name, description }) = case description of
-    Just desc -> "\"\"\"\n" <> desc <> "\n\"\"\"\nscalar " <> name
-    Nothing -> "scalar " <> name
-
-newtype Argument a =
-  Argument
-    { description :: Maybe String
-    , parseLiteral :: AST.ValueNode -> Either String a
-    , parseValue :: Json.Json -> Either String a
-    }
-
--- | A type class constraining the resolver arguments parameter to the supplied
--- | arguments declaration.
--- | E.g. if the provided args are of type `{ name: Argument String }` the
--- | resolvers second argument needs to be of type `{ name: String }`.
--- class ArgDeclarationToArgs
---   (decl :: # Type)
---   (args :: # Type)
---   | decl -> args, args -> decl
-
--- instance argDeclarationToArgsImpl
---   :: ( RowToList decl ldecl
---      , ConvertDeclArgs ldecl largs
---      , ListToRow largs args )
---   => ArgDeclarationToArgs decl args
-
--- class ConvertDeclArgs
---   (ldecl :: RowList)
---   (largs :: RowList)
---   | ldecl -> largs, largs -> ldecl
-
--- instance convertDeclArgsNil :: ConvertDeclArgs Nil Nil
-
--- instance convertDeclArgsCons :: ConvertDeclArgs ldecl largs
---   => ConvertDeclArgs (Cons k (Argument a) ldecl) (Cons k a largs)
-
--- parseArgs :: forall args argsp. Record args -> List.List AST.ArgumentNode -> Json.Json -> Record argsp
--- parseArgs args nodes variables = ?mapArgs parseArg args nodes
---   where
---     parseArg :: forall a n. Argument n a -> AST.ArgumentNode -> Either String a
---     parseArg (Argument arg) (AST.ArgumentNode { value }) = case value of
---       AST.VariableNode { name } -> map arg.parseValue $ variables .: name
---       v -> arg.parseLiteral v
-
---     findArg :: List.List AST.ArgumentNode -> String -> Either String a
---     findArg list name = List.find 
-
--- serializeField :: Field n a args AST.FieldNode -> String
-
-newtype Schema a = Schema { query :: ObjectType a }
+  show (ScalarType { name }) = "scalar " <> name
 
 newtype ObjectType a =
   ObjectType
@@ -103,26 +68,29 @@ newtype ObjectType a =
 
 instance outputTypeObjectType :: OutputType ObjectType where
   serialize (ObjectType o) (Just (AST.SelectionSetNode { selections })) val =
-    foldr extend Json.jsonEmptyObject <$> traverse (serializeField o.fields val) selections
+    foldr extend Json.jsonEmptyObject <$> traverse serializeField selections
+      where
+        serializeField node@(AST.FieldNode fld) =
+          let (AST.NameNode { value: name }) = fld.name
+              (AST.NameNode { value: alias }) = fromMaybe fld.name fld.alias
+          in case lookup name o.fields of
+            Just (ExecutableField { execute }) ->
+              execute val node >>= (Tuple alias >>> pure)
+            Nothing -> Left ("Unknown field `" <> name <> "` in selection.")
+        serializeField _ = Left "Error!"
   serialize _ _ _ = Left "Missing subselection on object type."
 
 instance showObjectType :: Show (ObjectType a) where
   show (ObjectType { name }) = "type " <> name
 
-serializeField ::
-  forall a. Map String (ExecutableField a) -> a -> AST.SelectionNode -> Either String (Tuple String Json.Json)
-serializeField fields val node@(AST.FieldNode fld) =
-  let (AST.NameNode { value: name }) = fld.name
-      (AST.NameNode { value: alias }) = fromMaybe fld.name fld.alias
-  in case lookup name fields of
-    Just (ExecutableField { execute }) ->
-      execute val node >>= (Tuple alias >>> pure)
-    Nothing -> Left ("Unknown field `" <> name <> "` in selection.")
-serializeField _ _ _ = Left "Error!"
-
+-- | The executable field loses the information about it's arguments types. This is needed to add it
+-- | to the map of arguments of the object type. The execute function will extract the arguments of
+-- | the field from the AST.
 newtype ExecutableField a =
   ExecutableField { execute :: a -> AST.SelectionNode -> Either String Json.Json }
 
+-- | Object types can have fields. Fields are constructed using the `field` function from this
+-- | module and added to object types using the `:>` operator.
 newtype Field a argsd argsp =
   Field
     { name :: String
@@ -131,6 +99,31 @@ newtype Field a argsd argsp =
     , serialize :: AST.SelectionNode -> Record argsp -> a -> Either String Json.Json
     }
 
+-- | Fields can have multiple arguments. Arguments are constructed using the `arg` function from
+-- | this module and the `?>` operator.
+newtype Argument a =
+  Argument
+    { description :: Maybe String
+    , parseLiteral :: AST.ValueNode -> Either String a
+    , parseValue :: Json.Json -> Either String a
+    }
+
+-- | Creates an empty object type with the given name. Fields can be added to the object type using
+-- | the `:>` operator from this module.
+objectType :: forall a. String -> ObjectType a
+objectType name =
+  ObjectType { name, description: Nothing, fields: empty }
+
+-- | Create a new field for an object type. This function is typically used together with the
+-- | `:>` operator that automatically converts the field into an executable field.
+field :: forall t a. OutputType t => String -> t a -> Field a () ()
+field name t = Field { name, description: Nothing, args: {}, serialize: serialize' }
+  where
+    serialize' (AST.FieldNode node) _ val = serialize t node.selectionSet val
+    serialize' _ _ _ = Left "Somehow obtained non FieldNode for field serialisation..."
+
+-- | Create a tuple with a given name and a plain argument of the given type.
+-- | The name argument tuple can then be used to be added to a field using the `?>` operator.
 arg :: forall t a n. InputType t => IsSymbol n => t a -> SProxy n -> Tuple (SProxy n) (Argument a)
 arg t name =
     Tuple (SProxy :: _ n) $
@@ -139,33 +132,37 @@ arg t name =
     parseL = parseLiteral t
     parseV = parseValue t
 
-field :: forall t a. OutputType t => String -> t a -> Field a () ()
-field name t = Field { name, description: Nothing, args: {}, serialize: serialize' }
-  where
-    serialize' (AST.FieldNode node) _ val = serialize t node.selectionSet val
-    serialize' _ _ _ = Left "Somehow obtained non FieldNode for field serialisation..."
-
-objectType :: forall a. String -> ObjectType a
-objectType name =
-  ObjectType { name, description: Nothing, fields: empty }
-
 -- * Combinator operators
 
+-- | The describe type class is used to allow adding descriptions to various parts of a GraphQL
+-- | schema that can have a description. The `.>` operator can be used with the GraphQL object
+-- | type DSL to easily add descriptions in various places.
+-- |
+-- | *Example:*
+-- | ```purescript
+-- | objectType "User"
+-- |   .> "A user of the product."
+-- |   :> "id" Scalar.id
+-- |     .> "A unique identifier for this user."
+-- | ```
 class Describe a where
   describe :: a -> String -> a
 
 infixl 8 describe as .>
 
 instance describeObjectType :: Describe (ObjectType a) where
-  describe (ObjectType config) s =
-    ObjectType (config { description = Just s })
+  describe (ObjectType config) s = ObjectType (config { description = Just s })
 
 instance describeField :: Describe (Field a argsd argsp) where
-  describe (Field config) s =
-    Field (config { description = Just s })
+  describe (Field config) s = Field (config { description = Just s })
 
-infixl 5 withField as :>
+instance describeArgument :: Describe (Argument a) where
+  describe (Argument config) s = Argument (config { description = Just s })
 
+-- | The `withField` function is used to add fields to an object type.
+-- |
+-- | When added to an object type the information about the field's argument are hidden in the
+-- | closure by being converted to the `ExecutableField` type.
 withField :: forall a argsd argsp.
   ArgsDefToArgsParam argsd argsp =>
   ObjectType a ->
@@ -183,8 +180,17 @@ withField (ObjectType objectConfig) fld@(Field { name }) =
             serialize' node argumentValues val
           execute' _ _ = Left "Unexpected non field node field execution..."
 
--- | After we have extracted the row list proxies we can use this class to write implementations
--- | that match based on the proxies.
+-- | Add a field to an object type.
+-- |
+-- | *Example:*
+-- | ```purescript
+-- | objectType "Query"
+-- |   :> field "hello" Scalar.string 
+-- | ```
+infixl 5 withField as :>
+
+-- | A type class that contrains the relationship between defined arguments and the _argument_
+-- | parameter of a resolver.
 class ArgsDefToArgsParam (argsd :: # Type) (argsp :: # Type)
     | argsd -> argsp
     , argsp -> argsd where
@@ -201,7 +207,7 @@ instance argsDefToArgsParamImpl ::
   , RL.ListToRow largsp argsp ) => ArgsDefToArgsParam argsd argsp where
     argsFromDefinition = argsFromRows (RLProxy :: RLProxy largsd) (RLProxy :: RLProxy largsp)
 
--- Without the RowList we cannot match on the empty list
+-- | ArgsDefToArgsParam that works on row lists for matching implementations
 class ArgsFromRows
   (largsd :: RL.RowList)
   (largsp :: RL.RowList)
@@ -215,7 +221,6 @@ class ArgsFromRows
       Record argsd ->
       Either String (Record argsp)
 
--- Instance for when the resolver function expects an argument
 instance argsFromRowsCons ::
   ( Row.Cons l (Argument a) targsd argsd
   , Row.Cons l a targsp argsp
@@ -242,10 +247,12 @@ instance argsFromRowsCons ::
           tail = argsFromRows (RLProxy :: RLProxy ltargsd) (RLProxy :: RLProxy ltargsp) nodes tailArgsDef
       in Record.insert key <$> (argConfig.parseLiteral valueNode) <*> tail
 
--- Instance for all other cases
 else instance argsFromRowsNil :: ArgsFromRows RL.Nil RL.Nil argsd argsp where
   argsFromRows _ _ _ _ = pure $ unsafeCoerce {}
 
+-- | The `withArgument` function adds an argument to a field. The argument can then be used in
+-- | resolvers that are added to the field. The old resolver of the field is still valid until it is
+-- | overwritten by `withResolver.`
 withArgument :: forall a arg n argsdold argsdnew argspold argspnew.
   IsSymbol n =>
   Row.Cons n (Argument arg) argsdold argsdnew =>
@@ -266,25 +273,32 @@ withArgument (Field fieldConfig) (Tuple proxy argument) =
       serialize' :: AST.SelectionNode -> Record argspnew -> a -> Either String Json.Json
       serialize' node argsnew val = fieldConfig.serialize node (Record.delete proxy argsnew) val
 
+-- | Adds an argument to a field that can be used in the resolver.
+-- |
+-- | *Example:*
+-- | ```purescript
+-- | objectType "Query"
+-- |   :> field "hello" Scalar.string
+-- |     ?> arg (SProxy :: SProxy "name") Scalar.string
+-- |     !> (\{ name } parent -> "Hello " <> name <> "!")
+-- | ```
 infixl 7 withArgument as ?>
 
+-- | The `withResolver` function adds a resolver to a field.
+-- |
+-- | _Note: When used multiple times on a field the resolvers are chained in front of each other._
 withResolver :: forall a b argsd argsp. Field a argsd argsp -> (Record argsp -> b -> a) -> Field b argsd argsp
 withResolver (Field fieldConfig) resolver =
   Field $ fieldConfig { serialize = serialize' }
     where 
       serialize' node args val = fieldConfig.serialize node args (resolver args val)
 
+-- | Add a resolver to a field that receives the arguments in a record and the parent value.
+-- |
+-- | *Example:*
+-- | ```purescript
+-- | objectType "Query"
+-- |   :> field "hello" Scalar.string
+-- |     !> (\_ parent -> "Hello " <> parent.name <> "!")
+-- | ```
 infixl 6 withResolver as !>
-
-{-
-data IntrospectionType
-  =
-
-data IntrospectionArgument
-  = IntrospectionArgument { name :: String, description :: String, type :: Unit -> IntrospectionType }
-
-newtype GraphQLType = GraphQLType
-  { inspect :: Unit ->  }
-
-stringArg :: String -> Maybe String -> Argument String
-
