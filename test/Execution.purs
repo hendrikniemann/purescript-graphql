@@ -62,7 +62,7 @@ executionSpec =
       let result = graphql testSchema "query Test { nested { id name age } }" ""
       let strResult = map stringify result
       strResult `shouldEqual` Right """{"nested":{"id":"user1","name":"Hendrik","age":25}}"""
-    it "runs an aliased field selection" do
-      let result = graphql testSchema """query Test { greet(name: "Stranger") }""" ""
+    it "runs a query with a field that has an argument" do
+      let result = graphql testSchema """query Test { greet(name: "Hendrik") }""" ""
       let strResult = map stringify result
       strResult `shouldEqual` Right """{"greet":"Greetings Hendrik!"}"""
