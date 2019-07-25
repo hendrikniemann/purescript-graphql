@@ -49,20 +49,20 @@ executionSpec =
     it "runs a simple field selection" do
       let result = graphql testSchema "query Test { hello }" "Hendrik"
       let strResult = map stringify result
-      strResult `shouldEqual` Right """{"hello":"Hello Hendrik!"}"""
+      strResult `shouldEqual` Right """{"data":{"hello":"Hello Hendrik!"}}"""
     it "runs an aliased field selection" do
       let result = graphql testSchema "query Test { alias: hello }" "Hendrik"
       let strResult = map stringify result
-      strResult `shouldEqual` Right """{"alias":"Hello Hendrik!"}"""
+      strResult `shouldEqual` Right """{"data":{"alias":"Hello Hendrik!"}}"""
     it "runs queries with multiple selections" do
       let result = graphql testSchema "query Test { hello test }" "Hendrik"
       let strResult = map stringify result
-      strResult `shouldEqual` Right """{"hello":"Hello Hendrik!","test":42}"""
+      strResult `shouldEqual` Right """{"data":{"hello":"Hello Hendrik!","test":42}}"""
     it "runs nested queries" do
       let result = graphql testSchema "query Test { nested { id name age } }" ""
       let strResult = map stringify result
-      strResult `shouldEqual` Right """{"nested":{"id":"user1","name":"Hendrik","age":25}}"""
+      strResult `shouldEqual` Right """{"data":{"nested":{"id":"user1","name":"Hendrik","age":25}}}"""
     it "runs a query with a field that has an argument" do
       let result = graphql testSchema """query Test { greet(name: "Hendrik") }""" ""
       let strResult = map stringify result
-      strResult `shouldEqual` Right """{"greet":"Greetings Hendrik!"}"""
+      strResult `shouldEqual` Right """{"data":{"greet":"Greetings Hendrik!"}}"""

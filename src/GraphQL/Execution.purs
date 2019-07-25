@@ -1,19 +1,21 @@
 module GraphQL.Execution (execute) where
 
-import Data.Argonaut.Core (Json)
-import Data.Argonaut.Encode (encodeJson)
-import Data.Either (Either(..), either)
-import Data.List (List(..), (:))
+import Data.Argonaut.Core (Json, jsonEmptyObject)
+import Data.Argonaut.Encode ((:=), (~>))
+import Data.List (List(..))
 import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
 import GraphQL.Language.AST (DefinitionNode(..), DocumentNode(..), OperationTypeNode(..))
+import GraphQL.Execution.Result (serializeResult)
 import GraphQL.Type (Schema(..), VariableMap, output)
-import Prelude (($), identity)
+import Prelude (($))
+
+simpleError :: String -> Json
+simpleError e = "error" := e ~> jsonEmptyObject
 
 execute :: forall a. DocumentNode -> Schema a -> VariableMap -> a -> Json
 execute (DocumentNode { definitions: Cons query Nil }) (Schema s) variables root =
-  either (\error -> encodeJson (Tuple "error" error : Nil)) identity $ case query of
+  case query of
     OperationDefinitionNode { operation: Query, selectionSet } ->
-      output s.query (Just selectionSet) variables root
-    _ -> Left "Somehow received non OperationDefinitionNode for operation execution..."
-execute _ _ _ _ = encodeJson (Tuple "error" "Can only execute documents with single query" : Nil)
+      serializeResult $ output s.query (Just selectionSet) variables root
+    _ -> simpleError "Somehow received non OperationDefinitionNode for operation execution..."
+execute _ _ _ _ = simpleError "Can only execute documents with single query"

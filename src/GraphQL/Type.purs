@@ -3,14 +3,14 @@ module GraphQL.Type where
 import Prelude
 
 import Data.Argonaut.Core as Json
-import Data.Argonaut.Encode (extend)
 import Data.Either (Either(..), note)
 import Data.List (List)
 import Data.Map (Map, empty, insert, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
-import Data.Traversable (find, foldr, traverse)
+import Data.Traversable (find)
 import Data.Tuple (Tuple(..))
+import GraphQL.Execution.Result (Result(..))
 import GraphQL.Language.AST as AST
 import Record as Record
 import Type.Data.RowList (RLProxy(..))
@@ -29,7 +29,7 @@ class InputType t where
 
 -- | The output type class is used for all GraphQL types that can be used as output types.
 class OutputType t where
-  output :: forall a. t a -> Maybe AST.SelectionSetNode -> VariableMap -> a -> Either String Json.Json
+  output :: forall a. t a -> Maybe AST.SelectionSetNode -> VariableMap -> a -> Result
 
 -- | Scalar types are the leaf nodes of a GraphQL schema. Scalar types can be serialised into JSON
 -- | or obtained from a JSON when read from the variables provided by a query. Furthermore values
@@ -59,8 +59,8 @@ instance inputTypeScalarType :: InputType ScalarType where
   input _ Nothing _ = Left "Must provide value for required scalar."
 
 instance outputTypeScalarType :: OutputType ScalarType where
-  output (ScalarType s) Nothing _ val = pure $ s.serialize val
-  output _ _ _ _ = Left "Invalid subselection on scalar type!"
+  output (ScalarType s) Nothing _ val = ResultLeaf $ s.serialize val
+  output _ _ _ _ = ResultError "Invalid subselection on scalar type!"
 
 instance showScalarType :: Show (ScalarType a) where
   show (ScalarType { name }) = "scalar " <> name
@@ -74,17 +74,19 @@ newtype ObjectType a =
 
 instance outputTypeObjectType :: OutputType ObjectType where
   output (ObjectType o) (Just (AST.SelectionSetNode { selections })) variables val =
-    foldr extend Json.jsonEmptyObject <$> traverse serializeField selections
+    ResultObject $ map serializeField selections
       where
         serializeField node@(AST.FieldNode fld) =
           let (AST.NameNode { value: name }) = fld.name
               (AST.NameNode { value: alias }) = fromMaybe fld.name fld.alias
           in case lookup name o.fields of
             Just (ExecutableField { execute }) ->
-              execute val node variables >>= (Tuple alias >>> pure)
-            Nothing -> Left ("Unknown field `" <> name <> "` in selection.")
-        serializeField _ = Left "Error!"
-  output _ _ _ _ = Left "Missing subselection on object type."
+              Tuple alias $ execute val node variables
+            Nothing -> Tuple alias $ ResultError ("Unknown field `" <> name <> "` in selection.")
+        -- TODO: This branch needs fixing. It is for fragment spreads and so on. Maybe normalise
+        --       the query first and completely eliminate the branch...
+        serializeField _ = Tuple "unknown" $ ResultError "Unexpected fragment spread!"
+  output _ _ _ _ = ResultError "Missing subselection on object type."
 
 instance showObjectType :: Show (ObjectType a) where
   show (ObjectType { name }) = "type " <> name
@@ -93,7 +95,7 @@ instance showObjectType :: Show (ObjectType a) where
 -- | to the map of arguments of the object type. The execute function will extract the arguments of
 -- | the field from the AST.
 newtype ExecutableField a =
-  ExecutableField { execute :: a -> AST.SelectionNode -> VariableMap -> Either String Json.Json }
+  ExecutableField { execute :: a -> AST.SelectionNode -> VariableMap -> Result }
 
 -- | Object types can have fields. Fields are constructed using the `field` function from this
 -- | module and added to object types using the `:>` operator.
@@ -102,7 +104,7 @@ newtype Field a argsd argsp =
     { name :: String
     , description :: Maybe String
     , args :: Record argsd
-    , serialize :: AST.SelectionNode -> VariableMap -> Record argsp -> a -> Either String Json.Json
+    , serialize :: AST.SelectionNode -> VariableMap -> Record argsp -> a -> Result
     }
 
 -- | Fields can have multiple arguments. Arguments are constructed using the `arg` function from
@@ -125,7 +127,7 @@ field :: forall t a. OutputType t => String -> t a -> Field a () ()
 field name t = Field { name, description: Nothing, args: {}, serialize }
   where
     serialize (AST.FieldNode node) variables _ val = output t node.selectionSet variables val
-    serialize _ _ _ _ = Left "Somehow obtained non FieldNode for field serialisation..."
+    serialize _ _ _ _ = ResultError "Somehow obtained non FieldNode for field serialisation..."
 
 -- | Create a tuple with a given name and a plain argument of the given type.
 -- | The name argument tuple can then be used to be added to a field using the `?>` operator.
@@ -178,11 +180,12 @@ withField (ObjectType objectConfig) fld@(Field { name }) =
       makeExecutable :: Field a argsd argsp -> ExecutableField a
       makeExecutable (Field { args, serialize: serialize' }) = ExecutableField { execute: execute' }
         where
-          execute' :: a -> AST.SelectionNode -> VariableMap -> Either String Json.Json
-          execute' val node@(AST.FieldNode { arguments: argumentNodes }) variables = do
-            argumentValues <- argsFromDefinition argumentNodes variables args
-            serialize' node variables argumentValues val
-          execute' _ _ _ = Left "Unexpected non field node field execution..."
+          execute' :: a -> AST.SelectionNode -> VariableMap -> Result
+          execute' val node@(AST.FieldNode { arguments: argumentNodes }) variables =
+            case argsFromDefinition argumentNodes variables args of
+              Right argumentValues -> serialize' node variables argumentValues val
+              Left err -> ResultError err
+          execute' _ _ _ = ResultError "Unexpected non field node field execution..."
 
 -- | Add a field to an object type.
 -- |
@@ -287,7 +290,7 @@ withArgument (Field fieldConfig) (Tuple proxy argument) =
         VariableMap ->
         Record argspnew ->
         a ->
-        Either String Json.Json
+        Result
       serialize' node variables argsnew val =
         fieldConfig.serialize node variables (Record.delete proxy argsnew) val
 
@@ -308,7 +311,7 @@ infixl 7 withArgument as ?>
 withResolver :: forall a b argsd argsp. Field a argsd argsp -> (Record argsp -> b -> a) -> Field b argsd argsp
 withResolver (Field fieldConfig) resolver =
   Field $ fieldConfig { serialize = serialize }
-    where 
+    where
       serialize node variables args val =
         fieldConfig.serialize node variables args (resolver args val)
 

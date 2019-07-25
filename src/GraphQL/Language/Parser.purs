@@ -12,7 +12,7 @@ import Prelude hiding (between)
 
 import Control.Alt ((<|>))
 import Control.Lazy (defer)
-import Data.List (List(..), reverse, toUnfoldable)
+import Data.List (List(..), toUnfoldable)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String.CodeUnits (fromCharArray)
 import GraphQL.Language.AST as AST
@@ -98,7 +98,7 @@ simpleNamedType = AST.SimpleNamedTypeNode <<< {name: _} <$> name
 
 selectionSet :: Parser AST.SelectionSetNode
 selectionSet =
-  braces $ AST.SelectionSetNode <<< {selections: _} <<< reverse <$> many (defer \_ -> selection)
+  braces $ AST.SelectionSetNode <<< {selections: _} <$> many (defer \_ -> selection)
 
 selection :: Parser AST.SelectionNode
 selection =
