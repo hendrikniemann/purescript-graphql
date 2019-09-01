@@ -2,14 +2,17 @@ module GraphQL.Type where
 
 import Prelude
 
+import Control.Bind (bindFlipped)
+import Control.Monad.Error.Class (class MonadError)
 import Data.Argonaut.Core as Json
 import Data.Either (Either(..), note)
 import Data.List (List)
 import Data.Map (Map, empty, insert, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
-import Data.Traversable (find)
+import Data.Traversable (find, traverse)
 import Data.Tuple (Tuple(..))
+import Effect.Exception (Error)
 import GraphQL.Execution.Result (Result(..))
 import GraphQL.Language.AST as AST
 import Record as Record
@@ -19,7 +22,7 @@ import Type.RowList as RL
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | The schema contains the central entry points for GraphQL queries.
-newtype Schema a = Schema { query :: ObjectType a }
+newtype Schema m a = Schema { query :: ObjectType m a }
 
 type VariableMap = Map String Json.Json
 
@@ -28,8 +31,8 @@ class InputType t where
   input :: forall a. t a -> Maybe AST.ValueNode -> VariableMap -> Either String a
 
 -- | The output type class is used for all GraphQL types that can be used as output types.
-class OutputType t where
-  output :: forall a. t a -> Maybe AST.SelectionSetNode -> VariableMap -> a -> Result
+class MonadError Error m <= OutputType m t where
+  output :: forall a. t a -> Maybe AST.SelectionSetNode -> VariableMap -> a -> m Result
 
 -- | Scalar types are the leaf nodes of a GraphQL schema. Scalar types can be serialised into JSON
 -- | or obtained from a JSON when read from the variables provided by a query. Furthermore values
@@ -58,53 +61,54 @@ instance inputTypeScalarType :: InputType ScalarType where
     _ -> config.parseLiteral node
   input _ Nothing _ = Left "Must provide value for required scalar."
 
-instance outputTypeScalarType :: OutputType ScalarType where
-  output (ScalarType s) Nothing _ val = ResultLeaf $ s.serialize val
-  output _ _ _ _ = ResultError "Invalid subselection on scalar type!"
+instance outputTypeScalarType :: (MonadError Error m) => OutputType m ScalarType where
+  output (ScalarType s) Nothing _ val = pure $ ResultLeaf $ s.serialize val
+  output _ _ _ _ = pure $ ResultError "Invalid subselection on scalar type!"
 
 instance showScalarType :: Show (ScalarType a) where
   show (ScalarType { name }) = "scalar " <> name
 
-newtype ObjectType a =
+newtype ObjectType m a =
   ObjectType
     { name :: String
     , description :: Maybe String
-    , fields :: Map String (ExecutableField a)
+    , fields :: Map String (ExecutableField m a)
     }
 
-instance outputTypeObjectType :: OutputType ObjectType where
+instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectType m) where
   output (ObjectType o) (Just (AST.SelectionSetNode { selections })) variables val =
-    ResultObject $ map serializeField selections
+    ResultObject <$> traverse serializeField selections
       where
+        serializeField :: AST.SelectionNode -> m (Tuple String Result)
         serializeField node@(AST.FieldNode fld) =
           let (AST.NameNode { value: name }) = fld.name
               (AST.NameNode { value: alias }) = fromMaybe fld.name fld.alias
           in case lookup name o.fields of
             Just (ExecutableField { execute }) ->
-              Tuple alias $ execute val node variables
-            Nothing -> Tuple alias $ ResultError ("Unknown field `" <> name <> "` in selection.")
+              Tuple alias <$> execute val node variables
+            Nothing -> pure $ Tuple alias $ ResultError ("Unknown field `" <> name <> "` in selection.")
         -- TODO: This branch needs fixing. It is for fragment spreads and so on. Maybe normalise
         --       the query first and completely eliminate the branch...
-        serializeField _ = Tuple "unknown" $ ResultError "Unexpected fragment spread!"
-  output _ _ _ _ = ResultError "Missing subselection on object type."
+        serializeField _ = pure $ Tuple "unknown" $ ResultError "Unexpected fragment spread!"
+  output _ _ _ _ = pure $ ResultError "Missing subselection on object type."
 
-instance showObjectType :: Show (ObjectType a) where
+instance showObjectType :: Show (ObjectType m a) where
   show (ObjectType { name }) = "type " <> name
 
 -- | The executable field loses the information about it's arguments types. This is needed to add it
 -- | to the map of arguments of the object type. The execute function will extract the arguments of
 -- | the field from the AST.
-newtype ExecutableField a =
-  ExecutableField { execute :: a -> AST.SelectionNode -> VariableMap -> Result }
+newtype ExecutableField m a =
+  ExecutableField { execute :: a -> AST.SelectionNode -> VariableMap -> m Result }
 
 -- | Object types can have fields. Fields are constructed using the `field` function from this
 -- | module and added to object types using the `:>` operator.
-newtype Field a argsd argsp =
+newtype Field m a argsd argsp =
   Field
     { name :: String
     , description :: Maybe String
     , args :: Record argsd
-    , serialize :: AST.SelectionNode -> VariableMap -> Record argsp -> a -> Result
+    , serialize :: AST.SelectionNode -> VariableMap -> Record argsp -> a -> m Result
     }
 
 -- | Fields can have multiple arguments. Arguments are constructed using the `arg` function from
@@ -117,17 +121,17 @@ newtype Argument a =
 
 -- | Creates an empty object type with the given name. Fields can be added to the object type using
 -- | the `:>` operator from this module.
-objectType :: forall a. String -> ObjectType a
+objectType :: forall m a. String -> ObjectType m a
 objectType name =
   ObjectType { name, description: Nothing, fields: empty }
 
 -- | Create a new field for an object type. This function is typically used together with the
 -- | `:>` operator that automatically converts the field into an executable field.
-field :: forall t a. OutputType t => String -> t a -> Field a () ()
+field :: forall m t a. OutputType m t => MonadError Error m => String -> t a -> Field m a () ()
 field name t = Field { name, description: Nothing, args: {}, serialize }
   where
     serialize (AST.FieldNode node) variables _ val = output t node.selectionSet variables val
-    serialize _ _ _ _ = ResultError "Somehow obtained non FieldNode for field serialisation..."
+    serialize _ _ _ _ = pure $ ResultError "Obtained non FieldNode for field serialisation."
 
 -- | Create a tuple with a given name and a plain argument of the given type.
 -- | The name argument tuple can then be used to be added to a field using the `?>` operator.
@@ -156,10 +160,10 @@ class Describe a where
 
 infixl 8 describe as .>
 
-instance describeObjectType :: Describe (ObjectType a) where
+instance describeObjectType :: Describe (ObjectType m a) where
   describe (ObjectType config) s = ObjectType (config { description = Just s })
 
-instance describeField :: Describe (Field a argsd argsp) where
+instance describeField :: Describe (Field m a argsd argsp) where
   describe (Field config) s = Field (config { description = Just s })
 
 instance describeArgument :: Describe (Argument a) where
@@ -169,23 +173,24 @@ instance describeArgument :: Describe (Argument a) where
 -- |
 -- | When added to an object type the information about the field's argument are hidden in the
 -- | closure by being converted to the `ExecutableField` type.
-withField :: forall a argsd argsp.
+withField :: forall m a argsd argsp.
   ArgsDefToArgsParam argsd argsp =>
-  ObjectType a ->
-  Field a argsd argsp ->
-  ObjectType a
+  MonadError Error m =>
+  ObjectType m a ->
+  Field m a argsd argsp ->
+  ObjectType m a
 withField (ObjectType objectConfig) fld@(Field { name }) =
   ObjectType $ objectConfig { fields = insert name (makeExecutable fld) objectConfig.fields }
     where
-      makeExecutable :: Field a argsd argsp -> ExecutableField a
+      makeExecutable :: Field m a argsd argsp -> ExecutableField m a
       makeExecutable (Field { args, serialize: serialize' }) = ExecutableField { execute: execute' }
         where
-          execute' :: a -> AST.SelectionNode -> VariableMap -> Result
+          execute' :: a -> AST.SelectionNode -> VariableMap -> m Result
           execute' val node@(AST.FieldNode { arguments: argumentNodes }) variables =
             case argsFromDefinition argumentNodes variables args of
               Right argumentValues -> serialize' node variables argumentValues val
-              Left err -> ResultError err
-          execute' _ _ _ = ResultError "Unexpected non field node field execution..."
+              Left err -> pure (ResultError err)
+          execute' _ _ _ = pure (ResultError "Unexpected non field node field execution...")
 
 -- | Add a field to an object type.
 -- |
@@ -268,7 +273,7 @@ else instance argsFromRowsNil :: ArgsFromRows RL.Nil RL.Nil argsd argsp where
 -- | The `withArgument` function adds an argument to a field. The argument can then be used in
 -- | resolvers that are added to the field. The old resolver of the field is still valid until it is
 -- | overwritten by `withResolver.`
-withArgument :: forall a arg n argsdold argsdnew argspold argspnew.
+withArgument :: forall m a arg n argsdold argsdnew argspold argspnew.
   IsSymbol n =>
   Row.Cons n (Argument arg) argsdold argsdnew =>
   Row.Cons n arg argspold argspnew =>
@@ -276,9 +281,9 @@ withArgument :: forall a arg n argsdold argsdnew argspold argspnew.
   Row.Lacks n argspold =>
   ArgsDefToArgsParam argsdold argspold =>
   ArgsDefToArgsParam argsdnew argspnew =>
-  Field a argsdold argspold ->
+  Field m a argsdold argspold ->
   Tuple (SProxy n) (Argument arg) ->
-  Field a argsdnew argspnew
+  Field m a argsdnew argspnew
 withArgument (Field fieldConfig) (Tuple proxy argument) =
   Field $ fieldConfig { args = args', serialize = serialize' }
     where
@@ -290,7 +295,7 @@ withArgument (Field fieldConfig) (Tuple proxy argument) =
         VariableMap ->
         Record argspnew ->
         a ->
-        Result
+        m Result
       serialize' node variables argsnew val =
         fieldConfig.serialize node variables (Record.delete proxy argsnew) val
 
@@ -308,12 +313,16 @@ infixl 7 withArgument as ?>
 -- | The `withResolver` function adds a resolver to a field.
 -- |
 -- | _Note: When used multiple times on a field the resolvers are chained in front of each other._
-withResolver :: forall a b argsd argsp. Field a argsd argsp -> (Record argsp -> b -> a) -> Field b argsd argsp
+withResolver :: forall m a b argsd argsp.
+  MonadError Error m =>
+  Field m a argsd argsp ->
+  (Record argsp -> b -> m a) ->
+  Field m b argsd argsp
 withResolver (Field fieldConfig) resolver =
   Field $ fieldConfig { serialize = serialize }
     where
       serialize node variables args val =
-        fieldConfig.serialize node variables args (resolver args val)
+        bindFlipped (fieldConfig.serialize node variables args) (resolver args val)
 
 -- | Add a resolver to a field that receives the arguments in a record and the parent value.
 -- |
