@@ -4,10 +4,11 @@ import Prelude
 
 import Data.Argonaut.Core (stringify)
 import Data.Either (Either(..))
+import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff, Error)
 import GraphQL (graphql)
-import GraphQL.Type (ObjectType, Schema(..), arg, field, objectType, (!>), (.>), (:>), (?>))
+import GraphQL.Type (ObjectType, Schema(..), arg, field, listField, nullableField, objectType, (!>), (.>), (:>), (?>))
 import GraphQL.Type.Scalar as Scalar
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -30,6 +31,10 @@ queryType =
       !> (\_ _ -> pure 42)
     :> field "nested" userType
       !> (\_ _ -> pure $ User { id: "user1", name: "Hendrik", age: 25 })
+    :> listField "someList" Scalar.string
+      !> (\_ _ -> pure $ ["This", "is", "a", "little", "list"])
+    :> nullableField "nullable" Scalar.float
+      !> (\_ _ -> pure Nothing)
 
 newtype User = User { id :: String, name :: String, age :: Int }
 
@@ -56,19 +61,27 @@ executionSpec =
       testQuery
         "query Test { hello }"
         """{"data":{"hello":"Hello Hendrik!"}}"""
-    it "runs an aliased field selection" do
+    it "runs an aliased field selection" $
       testQuery
         "query Test { alias: hello }"
         """{"data":{"alias":"Hello Hendrik!"}}"""
-    it "runs queries with multiple selections" do
+    it "runs queries with multiple selections" $
       testQuery
         "query Test { hello test }"
         """{"data":{"hello":"Hello Hendrik!","test":42}}"""
-    it "runs nested queries" do
+    it "runs nested queries" $
       testQuery
         "query Test { nested { id name age } }"
         """{"data":{"nested":{"id":"user1","name":"Hendrik","age":25}}}"""
-    it "runs a query with a field that has an argument" do
+    it "runs a query with a field that has an argument" $
       testQuery
         """query Test { greet(name: "Hendrik") }"""
         """{"data":{"greet":"Greetings Hendrik!"}}"""
+    it "runs a query that queries a field that is a list" $
+      testQuery
+        "query Test { someList }"
+        """{"data":{"someList":["This","is","a","little","list"]}}"""
+    it "runs a query that queries a field that is nullable" $
+      testQuery
+        "query Test { nullable }"
+        """{"data":{"nullable":null}}"""

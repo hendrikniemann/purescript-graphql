@@ -6,11 +6,11 @@ import Control.Bind (bindFlipped)
 import Control.Monad.Error.Class (class MonadError)
 import Data.Argonaut.Core as Json
 import Data.Either (Either(..), note)
-import Data.List (List)
+import Data.List (List, fromFoldable)
 import Data.Map (Map, empty, insert, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
-import Data.Traversable (find, traverse)
+import Data.Traversable (class Traversable, find, traverse)
 import Data.Tuple (Tuple(..))
 import Effect.Exception (Error)
 import GraphQL.Execution.Result (Result(..))
@@ -31,6 +31,7 @@ class InputType t where
   input :: forall a. t a -> Maybe AST.ValueNode -> VariableMap -> Either String a
 
 -- | The output type class is used for all GraphQL types that can be used as output types.
+-- | It has instances for GraphQL types that can resolve a value within a certain monad error.
 class MonadError Error m <= OutputType m t where
   output :: forall a. t a -> Maybe AST.SelectionSetNode -> VariableMap -> a -> m Result
 
@@ -133,14 +134,45 @@ field name t = Field { name, description: Nothing, args: {}, serialize }
     serialize (AST.FieldNode node) variables _ val = output t node.selectionSet variables val
     serialize _ _ _ _ = pure $ ResultError "Obtained non FieldNode for field serialisation."
 
+-- | Create a new field for an object type that is a list. You can return any `Foldable` in the
+-- | resolver.
+listField :: forall m f t a.
+  MonadError Error m =>
+  Traversable f =>
+  OutputType m t =>
+  String ->
+  t a ->
+  Field m (f a) () ()
+listField name t = Field { name, description: Nothing, args: {}, serialize }
+  where
+    serialize (AST.FieldNode node) variables _ vals =
+      ResultList <$> fromFoldable <$> traverse (output t node.selectionSet variables) vals
+
+    serialize _ _ _ _ =
+      pure $ ResultError "Obtained non FieldNode for field serialisation."
+
+-- | Create a new field for an object type that is optional (i.e. it can be null). The resolver
+-- | must now return a `Maybe`.
+nullableField :: forall m t a.
+  MonadError Error m =>
+  OutputType m t =>
+  String ->
+  t a ->
+  Field m (Maybe a) () ()
+nullableField name t = Field { name, description: Nothing, args: {}, serialize }
+  where
+    serialize (AST.FieldNode node) variables _ vals =
+      ResultNullable <$> traverse (output t node.selectionSet variables) vals
+
+    serialize _ _ _ _ =
+      pure $ ResultError "Obtained non FieldNode for field serialisation."
+
 -- | Create a tuple with a given name and a plain argument of the given type.
 -- | The name argument tuple can then be used to be added to a field using the `?>` operator.
 arg :: forall t a n. InputType t => IsSymbol n => t a -> SProxy n -> Tuple (SProxy n) (Argument a)
 arg t name =
     Tuple (SProxy :: _ n) $
-      Argument { description: Nothing, resolveValue }
-  where
-    resolveValue = input t
+      Argument { description: Nothing, resolveValue: input t }
 
 -- * Combinator operators
 
