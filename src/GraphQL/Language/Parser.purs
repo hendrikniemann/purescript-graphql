@@ -16,15 +16,10 @@ import Data.List (List(..), toUnfoldable)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String.CodeUnits (fromCharArray)
 import GraphQL.Language.AST as AST
-import Prim.TypeError (class Warn, Text)
 import Text.Parsing.StringParser (Parser, try, fail)
 import Text.Parsing.StringParser.CodePoints (regex, string)
 import Text.Parsing.StringParser.CodeUnits (char, noneOf)
 import Text.Parsing.StringParser.Combinators (between, many, optionMaybe)
-import Unsafe.Coerce (unsafeCoerce)
-
-undefined :: forall a. Warn (Text "Use of undefined") => a
-undefined = unsafeCoerce unit
 
 parens :: forall a. Parser a -> Parser a
 parens = between (char '(') (char ')')
