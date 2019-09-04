@@ -5,6 +5,7 @@
   "depends": [
     "argonaut-codecs",
     "argonaut-core",
+    "enums",
     "foldable-traversable",
     "nullable",
     "numbers",

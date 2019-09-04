@@ -3,16 +3,17 @@ module GraphQL.Type where
 import Prelude
 
 import Control.Bind (bindFlipped)
-import Control.Monad.Error.Class (class MonadError)
+import Control.Monad.Error.Class (class MonadError, throwError)
 import Data.Argonaut.Core as Json
 import Data.Either (Either(..), note)
+import Data.Enum (class Enum, enumFromTo)
 import Data.List (List, fromFoldable)
 import Data.Map (Map, empty, insert, lookup)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Data.Traversable (class Traversable, find, traverse)
 import Data.Tuple (Tuple(..))
-import Effect.Exception (Error)
+import Effect.Exception (Error, error)
 import GraphQL.Execution.Result (Result(..))
 import GraphQL.Language.AST as AST
 import Record as Record
@@ -120,6 +121,51 @@ newtype Argument a =
     , resolveValue :: Maybe AST.ValueNode -> VariableMap -> Either String a
     }
 
+newtype EnumType a =
+  EnumType
+    { name :: String
+    , description :: Maybe String
+    , values :: Array (EnumValue a)
+    }
+
+newtype EnumValue a =
+  EnumValue
+    { name :: String
+    , description :: Maybe String
+    , value :: a
+    , isValue :: a -> Boolean }
+
+instance inputTypeEnumType :: InputType EnumType where
+  input (EnumType config) (Just node) variables =
+    let lookupName name =
+          note ("Unknown enum value `" <> name <> "` for type `" <> config.name <> "`.") $
+            find (\(EnumValue val) -> val.name == name) config.values
+    in case node of
+      AST.VariableNode { name: AST.NameNode { value: name } } -> do
+        json <- note ("Required variable `" <> name <> "` was not provided.") $
+          lookup name variables
+        EnumValue val <- Json.caseJsonString (Left "Enum values must be strings.") lookupName json
+        pure val.value
+      
+      AST.EnumValueNode { name: AST.NameNode { value: name } } -> do
+        EnumValue val <- lookupName name
+        pure val.value
+
+      _ -> Left "Unexpected non-enum value node for enum value."
+
+  input _ _ _ = Left "Missing value for required argument."
+
+instance outputTypeEnumType :: MonadError Error m => OutputType m EnumType where
+  output (EnumType config) Nothing _ value = maybe err pure do
+    EnumValue val <- find isEnumValue config.values
+    pure $ ResultLeaf $ Json.fromString val.name
+      where
+        isEnumValue (EnumValue { isValue }) = isValue value
+
+        err = throwError $ error "Could not select enum value representation from provided value."
+
+  output _ _ _ _ = pure $ ResultError "Invalid subselection on scalar type!"
+
 -- | Creates an empty object type with the given name. Fields can be added to the object type using
 -- | the `:>` operator from this module.
 objectType :: forall m a. String -> ObjectType m a
@@ -200,6 +246,12 @@ instance describeField :: Describe (Field m a argsd argsp) where
 
 instance describeArgument :: Describe (Argument a) where
   describe (Argument config) s = Argument (config { description = Just s })
+
+instance describeEnumType :: Describe (EnumType a) where
+  describe (EnumType config) s = EnumType ( config { description = Just s })
+
+instance describeEnumValue :: Describe (EnumValue a) where
+  describe (EnumValue config) s = EnumValue ( config { description = Just s })
 
 -- | The `withField` function is used to add fields to an object type.
 -- |
@@ -365,3 +417,13 @@ withResolver (Field fieldConfig) resolver =
 -- |     !> (\_ parent -> "Hello " <> parent.name <> "!")
 -- | ```
 infixl 6 withResolver as !>
+
+-- | Take a bounded enum and infer an enum type from that value using it's show instance to
+-- | represent the enum string. The show function cannot return values that are not valid GraphQL
+-- | indentifier strings. For practical reasons this is not checked at compile time. Please refer to
+-- | the tutorial for best practices around enum values.
+enumType :: forall a. Bounded a => Enum a => Show a => String -> EnumType a
+enumType name = EnumType { name, description: Nothing, values }
+  where
+    values = enumFromTo top bottom <#> \value ->
+      EnumValue { name: show value, description: Nothing, value, isValue: eq value }

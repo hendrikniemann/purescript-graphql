@@ -30,11 +30,15 @@ newtype LocatedError = LocatedError { path :: (List Path), message :: String }
 
 
 instance encodeJsonLocatedError :: EncodeJson LocatedError where
-  encodeJson (LocatedError { path, message }) = "path" := path ~> "message" := message
+  encodeJson (LocatedError { path, message }) =
+    "path" := path ~>
+    "message" := message ~>
+    jsonEmptyObject
 
 
---TODO: Follow spec on how to handle errors and null values around them:
---      Null should propagate to the next nullable field in the chain.
+-- TODO: Follow spec on how to handle errors and null values around them:
+--       Null should propagate to the next nullable field in the chain.
+-- TODO: Make the path property of located errors add up to form a path (currently always Nil).
 serializeResult :: Result -> Json
 serializeResult result =
   let Tuple errors json = serializeWithErrors result
