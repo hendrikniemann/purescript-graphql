@@ -11,6 +11,7 @@ import Data.Generic.Rep.Enum (genericPred, genericSucc)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Ord (genericCompare)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff, Error)
 import GraphQL (graphql)
@@ -23,6 +24,7 @@ import Test.Spec.Assertions (fail, shouldEqual)
 
 newtype User = User { id :: String, name :: String, age :: Int, level :: UserLevel }
 
+derive instance newtypeUser :: Newtype User _
 
 data UserLevel = NormalUser | Moderator | Admin
 
@@ -58,7 +60,7 @@ queryType =
     .> "The root query type"
     :> field "hello" Scalar.string
       .> "A simple test field that connects the root string with a greeting."
-      !> (\_ p -> pure $ "Hello " <> p <> "!")
+      !> (\_ -> map (\p -> "Hello " <> p <> "!"))
     :> field "greet" Scalar.string
       .> "A field that takes a name and responds with a presonalized greeting."
       ?> arg Scalar.string (SProxy :: SProxy "name")
@@ -81,13 +83,13 @@ userType =
   objectType "User"
     .> "A type for all users in the database"
     :> field "id" Scalar.string
-      !> (\_ (User user) -> pure user.id)
+      !> (\_ -> map $ unwrap >>> _.id)
     :> field "name" Scalar.string
-      !> (\_ (User user) -> pure user.name)
+      !> (\_ -> map $ unwrap >>> _.name)
     :> field "age" Scalar.int
-      !> (\_ (User user) -> pure user.age)
+      !> (\_ -> map $ unwrap >>> _.age)
     :> field "level" userLevelType
-      !> (\_ (User user) -> pure user.level)
+      !> (\_ -> map $ unwrap >>> _.level)
 
 
 userLevelType :: EnumType UserLevel

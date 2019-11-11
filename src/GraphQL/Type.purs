@@ -2,14 +2,13 @@ module GraphQL.Type where
 
 import Prelude
 
-import Control.Bind (bindFlipped)
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Data.Argonaut.Core as Json
 import Data.Either (Either(..), note)
 import Data.Enum (class Enum, enumFromTo)
 import Data.List (List, fromFoldable)
 import Data.Map (Map, empty, insert, lookup)
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Data.Traversable (class Traversable, find, traverse)
 import Data.Tuple (Tuple(..))
@@ -34,7 +33,7 @@ class InputType t where
 -- | The output type class is used for all GraphQL types that can be used as output types.
 -- | It has instances for GraphQL types that can resolve a value within a certain monad error.
 class MonadError Error m <= OutputType m t where
-  output :: forall a. t a -> Maybe AST.SelectionSetNode -> VariableMap -> a -> m Result
+  output :: forall a. t a -> Maybe AST.SelectionSetNode -> VariableMap -> m a -> m Result
 
 -- | Scalar types are the leaf nodes of a GraphQL schema. Scalar types can be serialised into JSON
 -- | or obtained from a JSON when read from the variables provided by a query. Furthermore values
@@ -64,7 +63,7 @@ instance inputTypeScalarType :: InputType ScalarType where
   input _ Nothing _ = Left "Must provide value for required scalar."
 
 instance outputTypeScalarType :: (MonadError Error m) => OutputType m ScalarType where
-  output (ScalarType s) Nothing _ val = pure $ ResultLeaf $ s.serialize val
+  output (ScalarType s) Nothing _ val = ResultLeaf <$> map s.serialize val
   output _ _ _ _ = pure $ ResultError "Invalid subselection on scalar type!"
 
 instance showScalarType :: Show (ScalarType a) where
@@ -101,7 +100,7 @@ instance showObjectType :: Show (ObjectType m a) where
 -- | to the map of arguments of the object type. The execute function will extract the arguments of
 -- | the field from the AST.
 newtype ExecutableField m a =
-  ExecutableField { execute :: a -> AST.SelectionNode -> VariableMap -> m Result }
+  ExecutableField { execute :: m a -> AST.SelectionNode -> VariableMap -> m Result }
 
 -- | Object types can have fields. Fields are constructed using the `field` function from this
 -- | module and added to object types using the `:>` operator.
@@ -110,7 +109,7 @@ newtype Field m a argsd argsp =
     { name :: String
     , description :: Maybe String
     , args :: Record argsd
-    , serialize :: AST.SelectionNode -> VariableMap -> Record argsp -> a -> m Result
+    , serialize :: AST.SelectionNode -> VariableMap -> Record argsp -> m a -> m Result
     }
 
 -- | Fields can have multiple arguments. Arguments are constructed using the `arg` function from
@@ -146,7 +145,7 @@ instance inputTypeEnumType :: InputType EnumType where
           lookup name variables
         EnumValue val <- Json.caseJsonString (Left "Enum values must be strings.") lookupName json
         pure val.value
-      
+
       AST.EnumValueNode { name: AST.NameNode { value: name } } -> do
         EnumValue val <- lookupName name
         pure val.value
@@ -156,15 +155,17 @@ instance inputTypeEnumType :: InputType EnumType where
   input _ _ _ = Left "Missing value for required argument."
 
 instance outputTypeEnumType :: MonadError Error m => OutputType m EnumType where
-  output (EnumType config) Nothing _ value = maybe err pure do
-    EnumValue val <- find isEnumValue config.values
-    pure $ ResultLeaf $ Json.fromString val.name
-      where
-        isEnumValue (EnumValue { isValue }) = isValue value
+  output :: forall a. EnumType a -> Maybe AST.SelectionSetNode -> VariableMap -> m a -> m Result
+  output (EnumType config) Nothing _ mValue = do
+    value <- mValue
+    case find (\(EnumValue { isValue }) -> isValue value) config.values of
+      Nothing ->
+        throwError $ error "Could not select enum value representation from provided value."
 
-        err = throwError $ error "Could not select enum value representation from provided value."
+      Just (EnumValue val) ->
+        pure $ ResultLeaf $ Json.fromString val.name
 
-  output _ _ _ _ = pure $ ResultError "Invalid subselection on scalar type!"
+  output _ _ _ _ = pure $ ResultError "Invalid subselection on enum type!"
 
 -- | Creates an empty object type with the given name. Fields can be added to the object type using
 -- | the `:>` operator from this module.
@@ -191,8 +192,9 @@ listField :: forall m f t a.
   Field m (f a) () ()
 listField name t = Field { name, description: Nothing, args: {}, serialize }
   where
-    serialize (AST.FieldNode node) variables _ vals =
-      ResultList <$> fromFoldable <$> traverse (output t node.selectionSet variables) vals
+    serialize (AST.FieldNode node) variables _ mVals = do
+      vals <- mVals
+      ResultList <$> fromFoldable <$> traverse (output t node.selectionSet variables) (pure <$> vals)
 
     serialize _ _ _ _ =
       pure $ ResultError "Obtained non FieldNode for field serialisation."
@@ -207,8 +209,14 @@ nullableField :: forall m t a.
   Field m (Maybe a) () ()
 nullableField name t = Field { name, description: Nothing, args: {}, serialize }
   where
-    serialize (AST.FieldNode node) variables _ vals =
-      ResultNullable <$> traverse (output t node.selectionSet variables) vals
+    serialize (AST.FieldNode node) variables _ mValue = do
+      value <- mValue
+      case value of
+        Nothing ->
+          pure $ ResultNullable Nothing
+
+        Just val ->
+          ResultNullable <$> Just <$> output t node.selectionSet variables (pure val)
 
     serialize _ _ _ _ =
       pure $ ResultError "Obtained non FieldNode for field serialisation."
@@ -269,7 +277,7 @@ withField (ObjectType objectConfig) fld@(Field { name }) =
       makeExecutable :: Field m a argsd argsp -> ExecutableField m a
       makeExecutable (Field { args, serialize: serialize' }) = ExecutableField { execute: execute' }
         where
-          execute' :: a -> AST.SelectionNode -> VariableMap -> m Result
+          execute' :: m a -> AST.SelectionNode -> VariableMap -> m Result
           execute' val node@(AST.FieldNode { arguments: argumentNodes }) variables =
             case argsFromDefinition argumentNodes variables args of
               Right argumentValues -> serialize' node variables argumentValues val
@@ -281,7 +289,7 @@ withField (ObjectType objectConfig) fld@(Field { name }) =
 -- | *Example:*
 -- | ```purescript
 -- | objectType "Query"
--- |   :> field "hello" Scalar.string 
+-- |   :> field "hello" Scalar.string
 -- | ```
 infixl 5 withField as :>
 
@@ -378,7 +386,7 @@ withArgument (Field fieldConfig) (Tuple proxy argument) =
         AST.SelectionNode ->
         VariableMap ->
         Record argspnew ->
-        a ->
+        m a ->
         m Result
       serialize' node variables argsnew val =
         fieldConfig.serialize node variables (Record.delete proxy argsnew) val
@@ -400,13 +408,14 @@ infixl 7 withArgument as ?>
 withResolver :: forall m a b argsd argsp.
   MonadError Error m =>
   Field m a argsd argsp ->
-  (Record argsp -> b -> m a) ->
+  (Record argsp -> m b -> m a) ->
   Field m b argsd argsp
 withResolver (Field fieldConfig) resolver =
   Field $ fieldConfig { serialize = serialize }
     where
+      serialize :: AST.SelectionNode -> VariableMap -> Record argsp -> m b -> m Result
       serialize node variables args val =
-        bindFlipped (fieldConfig.serialize node variables args) (resolver args val)
+        fieldConfig.serialize node variables args (resolver args val)
 
 -- | Add a resolver to a field that receives the arguments in a record and the parent value.
 -- |
