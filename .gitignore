@@ -1,5 +1,5 @@
 .vscode/
-/bower_components/
+/.spago/
 /node_modules/
 /.pulp-cache/
 /output/
