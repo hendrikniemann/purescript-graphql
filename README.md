@@ -20,25 +20,29 @@ module Main where
 import Prelude
 
 import Data.Argonaut.Core (stringify)
+import Data.Either (Either(..))
 import Effect (Effect)
 import Effect.Console as Console
+import Effect.Exception (Error)
 import GraphQL (graphql)
+import GraphQL.Type ((!>), (.>), (:>))
 import GraphQL.Type as GraphQL
 import GraphQL.Type.Scalar as Scalar
 
 main :: Effect Unit
-main = Console.log $ stringify $
-  graphql schema "{ hello }" unit unit Nothing Nothing
+main = case graphql schema "{ hello }" (pure unit) of
+  Left error -> Console.error $ show error
+  Right result -> Console.log $ stringify result
 -- {"data":{"hello":"world"}}
 
-schema :: GraphQL.Schema Unit
-schema = GraphQL.Schema { query: queryType, mutation: Nothing }
+schema :: GraphQL.Schema (Either Error) Unit
+schema = GraphQL.Schema { query: queryType }
 
-queryType :: GraphQL.ObjectType String
+queryType :: GraphQL.ObjectType (Either Error) Unit
 queryType =
   GraphQL.objectType "Query"
     .> "The root query type."
     :> GraphQL.field "hello" Scalar.string
       .> "A simple field that always returns \"world\"."
-      !> const "world"
+      !> (\_ _ -> pure "world")
 ```
