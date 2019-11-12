@@ -99,7 +99,7 @@ userLevelType =
 
 
 testQuery :: String -> String -> Aff Unit
-testQuery query expected = case map stringify (graphql testSchema query "Hendrik") of
+testQuery query expected = case map stringify (graphql testSchema query (pure "Hendrik")) of
   Right res -> res `shouldEqual` expected
 
   Left _ -> fail "failed to execute query"

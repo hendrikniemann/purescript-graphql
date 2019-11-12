@@ -15,7 +15,7 @@ import GraphQL.Type (Schema(..), VariableMap, output)
 simpleError :: forall m. Applicative m => String -> m Json
 simpleError e = pure $ "error" := e ~> jsonEmptyObject
 
-execute :: forall m a. MonadError Error m => DocumentNode -> Schema m a -> VariableMap -> a -> m Json
+execute :: forall m a. MonadError Error m => DocumentNode -> Schema m a -> VariableMap -> m a -> m Json
 execute (DocumentNode { definitions: Cons query Nil }) (Schema s) variables root =
   case query of
     OperationDefinitionNode { operation: Query, selectionSet } ->
