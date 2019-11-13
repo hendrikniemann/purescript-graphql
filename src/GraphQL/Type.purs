@@ -404,7 +404,7 @@ infixl 7 withArgument as ?>
 
 -- | The `withResolver` function adds a resolver to a field.
 -- |
--- | _Note: When used multiple times on a field the resolvers are chained in front of each other._
+-- | _Note: When used multiple times on a field the resolvers are chained._
 withResolver :: forall m a b argsd argsp.
   MonadError Error m =>
   Field m a argsd argsp ->
@@ -421,11 +421,49 @@ withResolver (Field fieldConfig) resolver =
 -- |
 -- | *Example:*
 -- | ```purescript
--- | objectType "Query"
--- |   :> field "hello" Scalar.string
--- |     !> (\_ parent -> "Hello " <> parent.name <> "!")
+-- | objectType "User"
+-- |   :> field "friends" Scalar.string
+-- |     !> (\_ user -> user >>= loadUserFriends)
 -- | ```
 infixl 6 withResolver as !>
+
+-- | Add a resolver to a field that does not take the arguments. This is useful in the very common
+-- | case that your field has no arguments.
+withSimpleResolver :: forall m a b.
+  MonadError Error m =>
+  Field m a () () ->
+  (m b -> m a) ->
+  Field m b () ()
+withSimpleResolver fld resolver = withResolver fld (const resolver)
+
+-- | Add a resolver to a field that receives only the parent value and ignores the arguments.
+-- |
+-- | *Example:*
+-- | ```purescript
+-- | objectType "User"
+-- |   :> field "friends" Scalar.string
+-- |     !!> (\user -> user >>= loadUserFriends)
+-- | ```
+infixl 6 withSimpleResolver as !!>
+
+-- | Add a resolver that simply maps over the parent value. This is useful when you have a pure
+-- | resolver that does not run effects.
+withMappingResolver :: forall m a b.
+  MonadError Error m =>
+  Field m a () () ->
+  (b -> a) ->
+  Field m b () ()
+withMappingResolver fld resolver = withSimpleResolver fld (map resolver)
+
+-- | Add a pure resolver to a field that simply maps the parent value.
+-- |
+-- | *Example:*
+-- | ```purescript
+-- | objectType "User"
+-- |   :> field "id" Scalar.string
+-- |     !#> _.id
+-- | ```
+infixl 6 withMappingResolver as !#>
 
 -- | Take a bounded enum and infer an enum type from that value using it's show instance to
 -- | represent the enum string. The show function cannot return values that are not valid GraphQL

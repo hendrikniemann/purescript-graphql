@@ -15,7 +15,8 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff, Error)
 import GraphQL (graphql)
-import GraphQL.Type (EnumType, ObjectType, Schema(..), arg, enumType, field, listField, nullableField, objectType, (!>), (.>), (:>), (?>))
+import GraphQL.Type ((!>), (.>), (:>), (?>), (!#>), (!!>))
+import GraphQL.Type as GQL
 import GraphQL.Type.Scalar as Scalar
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -50,51 +51,50 @@ instance showUserLevel :: Show UserLevel where
   show NormalUser = "USER"
 
 
-testSchema :: Schema (Either Error) String
-testSchema = Schema { query: queryType }
+testSchema :: GQL.Schema (Either Error) String
+testSchema = GQL.Schema { query: queryType }
 
 
-queryType :: ObjectType (Either Error) String
+queryType :: GQL.ObjectType (Either Error) String
 queryType =
-  objectType "Query"
+  GQL.objectType "Query"
     .> "The root query type"
-    :> field "hello" Scalar.string
+    :> GQL.field "hello" Scalar.string
       .> "A simple test field that connects the root string with a greeting."
       !> (\_ -> map (\p -> "Hello " <> p <> "!"))
-    :> field "greet" Scalar.string
+    :> GQL.field "greet" Scalar.string
       .> "A field that takes a name and responds with a presonalized greeting."
-      ?> arg Scalar.string (SProxy :: SProxy "name")
+      ?> GQL.arg Scalar.string (SProxy :: SProxy "name")
       !> (\{ name } _ -> pure $ "Greetings " <> name <> "!")
-    :> field "test" Scalar.int
-      !> (\_ _ -> pure 42)
-    :> field "nested" userType
-      !> (\_ _ -> pure $ User { id: "user1", name: "Hendrik", age: 25, level: NormalUser })
-    :> listField "someList" Scalar.string
-      !> (\_ _ -> pure $ ["This", "is", "a", "little", "list"])
-    :> nullableField "nullable" Scalar.float
-      !> (\_ _ -> pure Nothing)
-    :> field "reflect" Scalar.string
-      ?> arg userLevelType (SProxy :: _ "argIn")
+    :> GQL.field "test" Scalar.int
+      !!> (_ $> 42)
+    :> GQL.field "nested" userType
+      !!> (_ $> User { id: "user1", name: "Hendrik", age: 25, level: NormalUser })
+    :> GQL.listField "someList" Scalar.string
+      !!> (_ $> ["This", "is", "a", "little", "list"])
+    :> GQL.nullableField "nullable" Scalar.float
+      !!> (_ $> Nothing)
+    :> GQL.field "reflect" Scalar.string
+      ?> GQL.arg userLevelType (SProxy :: _ "argIn")
       !> (\{ argIn } _ -> pure $ show argIn)
 
 
-userType :: ObjectType (Either Error) User
+userType :: GQL.ObjectType (Either Error) User
 userType =
-  objectType "User"
+  GQL.objectType "User"
     .> "A type for all users in the database"
-    :> field "id" Scalar.string
-      !> (\_ -> map $ unwrap >>> _.id)
-    :> field "name" Scalar.string
-      !> (\_ -> map $ unwrap >>> _.name)
-    :> field "age" Scalar.int
-      !> (\_ -> map $ unwrap >>> _.age)
-    :> field "level" userLevelType
-      !> (\_ -> map $ unwrap >>> _.level)
+    :> GQL.field "id" Scalar.string
+      !#> unwrap >>> _.id
+    :> GQL.field "name" Scalar.string
+      !#> unwrap >>> _.name
+    :> GQL.field "age" Scalar.int
+      !#> unwrap >>> _.age
+    :> GQL.field "level" userLevelType
+      !#> unwrap >>> _.level
 
-
-userLevelType :: EnumType UserLevel
+userLevelType :: GQL.EnumType UserLevel
 userLevelType =
-  enumType "UserLevel"
+  GQL.enumType "UserLevel"
     .> "An enum type to denominate the user level."
 
 
