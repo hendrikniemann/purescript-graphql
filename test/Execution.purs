@@ -77,6 +77,9 @@ queryType =
     :> GQL.field "reflect" Scalar.string
       ?> GQL.arg userLevelType (SProxy :: _ "argIn")
       !> (\{ argIn } _ -> pure $ show argIn)
+    :> GQL.field "toggle" Scalar.boolean
+      ?> GQL.arg Scalar.boolean (SProxy :: _ "on")
+      !> (\{ on: onArg } _ -> pure $ not onArg)
 
 
 userType :: GQL.ObjectType (Either Error) User
@@ -158,3 +161,11 @@ executionSpec =
       testQuery
         """{ reflect(argIn: ADMIN) }"""
         """{"data":{"reflect":"ADMIN"}}"""
+
+    it "reads and serialized booleans correctly" do
+      testQuery
+        """{ toggle(on: true) }"""
+        """{"data":{"toggle":false}}"""
+      testQuery
+        """{ toggle(on: false) }"""
+        """{"data":{"toggle":true}}"""

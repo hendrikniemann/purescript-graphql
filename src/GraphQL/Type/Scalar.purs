@@ -5,8 +5,8 @@ import Prelude
 import Data.Argonaut.Core as Json
 import Data.Either (Either(..), note)
 import Data.Int as Int
-import Data.Number as Number
 import Data.Maybe (Maybe(..))
+import Data.Number as Number
 import GraphQL.Language.AST as AST
 import GraphQL.Type (ScalarType(..))
 
@@ -53,3 +53,13 @@ id = ScalarType { name, description, parseLiteral, parseValue, serialize }
   parseLiteral _ = Left "Expected string or integer value node for input type ID."
   parseValue = Json.caseJsonString (Left "Expected string or integer JSON value.") pure
   serialize = Json.fromString
+
+boolean :: ScalarType Boolean
+boolean = ScalarType { name, description, parseLiteral, parseValue, serialize }
+  where
+  name = "Boolean"
+  description = Just "Built in boolean scalar type."
+  parseLiteral (AST.BooleanValueNode { value }) = pure value
+  parseLiteral _ = Left "Expected boolean value for input type Boolean."
+  parseValue = Json.caseJsonBoolean (Left "Expected boolean JSON value.") pure
+  serialize = Json.fromBoolean
