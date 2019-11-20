@@ -2,7 +2,7 @@ module GraphQL.Type where
 
 import Prelude
 
-import Control.Monad.Error.Class (class MonadError, throwError)
+import Control.Monad.Error.Class (class MonadError, catchError, throwError)
 import Data.Argonaut.Core as Json
 import Data.Either (Either(..), note)
 import Data.Enum (class Enum, enumFromTo)
@@ -12,7 +12,7 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Data.Traversable (class Traversable, find, traverse)
 import Data.Tuple (Tuple(..))
-import Effect.Exception (Error, error)
+import Effect.Exception (Error, error, message)
 import GraphQL.Execution.Result (Result(..))
 import GraphQL.Language.AST as AST
 import Record as Record
@@ -86,7 +86,9 @@ instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectTyp
               (AST.NameNode { value: alias }) = fromMaybe fld.name fld.alias
           in case lookup name o.fields of
             Just (ExecutableField { execute }) ->
-              Tuple alias <$> execute val node variables
+              Tuple alias <$>
+                (flip catchError (message >>> ResultError >>> pure) $
+                  execute val node variables)
             Nothing -> pure $ Tuple alias $
               ResultError ("Unknown field `" <> name <> "` on type `" <> o.name <> "`.")
         -- TODO: This branch needs fixing. It is for fragment spreads and so on. Maybe normalise

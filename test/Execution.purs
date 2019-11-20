@@ -13,7 +13,7 @@ import Data.Generic.Rep.Ord (genericCompare)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (SProxy(..))
-import Effect.Aff (Aff, Error)
+import Effect.Aff (Aff, Error, throwError, error)
 import GraphQL (graphql)
 import GraphQL.Type ((!>), (.>), (:>), (?>), (!#>), (!!>))
 import GraphQL.Type as GQL
@@ -80,6 +80,8 @@ queryType =
     :> GQL.field "toggle" Scalar.boolean
       ?> GQL.arg Scalar.boolean (SProxy :: _ "on")
       !> (\{ on: onArg } _ -> pure $ not onArg)
+    :> GQL.nullableField "fail" Scalar.boolean
+      !!> (\_ -> throwError $ error "Always fails at runtime.")
 
 
 userType :: GQL.ObjectType (Either Error) User
@@ -94,6 +96,7 @@ userType =
       !#> unwrap >>> _.age
     :> GQL.field "level" userLevelType
       !#> unwrap >>> _.level
+
 
 userLevelType :: GQL.EnumType UserLevel
 userLevelType =
@@ -169,3 +172,8 @@ executionSpec =
       testQuery
         """{ toggle(on: false) }"""
         """{"data":{"toggle":true}}"""
+
+    it "Catches errors thrown inside of resolvers" do
+      testQuery
+        """{ fail }"""
+        """{"data":{"fail":null},"errors":[{"message":"Always fails at runtime.","path":[]}]}"""
