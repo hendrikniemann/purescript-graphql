@@ -87,7 +87,8 @@ instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectTyp
           in case lookup name o.fields of
             Just (ExecutableField { execute }) ->
               Tuple alias <$> execute val node variables
-            Nothing -> pure $ Tuple alias $ ResultError ("Unknown field `" <> name <> "` in selection.")
+            Nothing -> pure $ Tuple alias $
+              ResultError ("Unknown field `" <> name <> "` on type `" <> o.name <> "`.")
         -- TODO: This branch needs fixing. It is for fragment spreads and so on. Maybe normalise
         --       the query first and completely eliminate the branch...
         serializeField _ = pure $ Tuple "unknown" $ ResultError "Unexpected fragment spread!"
