@@ -46,3 +46,16 @@ queryType =
       .> "A simple field that always returns \"world\"."
       !> (\_ _ -> pure "world")
 ```
+
+## PureScript GraphQL v2 missing features
+
+This is a list of features still required to be implemented before v2 can have a first alpha release:
+
+- [_] Spec compliant error handling
+  - [_] Errors contain path
+  - [_] Errors contain location
+  - [_] Errors propagate up to nearest nullable field
+- [_] Interface Types
+- [_] Union Types
+- [_] Introspection
+- [_] \_\_typename meta field on object types
