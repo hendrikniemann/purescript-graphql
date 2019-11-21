@@ -61,14 +61,14 @@ exports._field = function(toNullable, toMaybe) {
       }
       return arg;
     }
-    if (typeof arg === 'undefined' || arg === null) {
+    if (typeof arg === "undefined" || arg === null) {
       return toMaybe(null);
     }
     if (G.isInputObjectType(type)) {
       return toMaybe(transformArgs(arg, type.getFields()));
     } else if (G.isListType(type)) {
       return toMaybe(
-        value.map(function(value) {
+        arg.map(function(value) {
           return transformArg(value, type.ofType);
         })
       );
