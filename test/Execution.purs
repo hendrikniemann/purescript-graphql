@@ -174,9 +174,17 @@ executionSpec =
         """{ toggle(on: false) }"""
         """{"data":{"toggle":true}}"""
 
-    it "Catches errors thrown inside of resolvers" do
+    it "Catches errors thrown inside of resolvers" $
       testQuery
         """{ fail }""" $
         trim """
           {"data":{"fail":null},"errors":[{"message":"Always fails at runtime.","path":["fail"]}]}
         """
+
+    it "returns the __typename meta field" do
+      testQuery
+        """{ __typename }"""
+        """{"data":{"__typename":"Query"}}"""
+      testQuery
+        """{ nested { __typename } }"""
+        """{"data":{"nested":{"__typename":"User"}}}"""

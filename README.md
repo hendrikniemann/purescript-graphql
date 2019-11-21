@@ -51,11 +51,11 @@ queryType =
 
 This is a list of features still required to be implemented before v2 can have a first alpha release:
 
-- [_] Spec compliant error handling
+- [ ] Spec compliant error handling
   - [x] Errors contain path
-  - [_] Errors contain location
-  - [_] Errors propagate up to nearest nullable field
-- [_] Interface Types
-- [_] Union Types
-- [_] Introspection
-- [_] \_\_typename meta field on object types
+  - [ ] Errors contain location
+  - [ ] Errors propagate up to nearest nullable field
+- [ ] Interface Types
+- [ ] Union Types
+- [ ] Introspection
+- [x] \_\_typename meta field on object types
