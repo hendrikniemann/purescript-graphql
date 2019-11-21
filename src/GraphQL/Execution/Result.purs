@@ -5,7 +5,7 @@ import Prelude
 import Data.Argonaut.Core (Json, fromNumber, fromString, jsonEmptyObject, jsonNull)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
 import Data.Int as Int
-import Data.List (List(..), foldl, null, singleton)
+import Data.List (List(..), foldl, mapWithIndex, null, singleton, (:))
 import Data.Maybe (Maybe, maybe)
 import Data.Tuple (Tuple(..), fst, snd)
 
@@ -36,6 +36,10 @@ instance encodeJsonLocatedError :: EncodeJson LocatedError where
     jsonEmptyObject
 
 
+pushPath :: Path -> LocatedError -> LocatedError
+pushPath path (LocatedError locerr) = LocatedError $ locerr { path = path : locerr.path}
+
+
 -- TODO: Follow spec on how to handle errors and null values around them:
 --       Null should propagate to the next nullable field in the chain.
 -- TODO: Make the path property of located errors add up to form a path (currently always Nil).
@@ -54,7 +58,7 @@ serializeWithErrors (ResultLeaf json) = Tuple Nil json
 
 serializeWithErrors (ResultList list) =
   let results = map serializeWithErrors list
-      errors = results >>= fst
+      errors = join $ mapWithIndex (\index -> map (pushPath $ PathIndex index) <<< fst) results
       jsons = map snd results
   in Tuple errors (encodeJson jsons)
 
@@ -63,7 +67,7 @@ serializeWithErrors (ResultObject list) = foldl f (Tuple Nil jsonEmptyObject) li
     f :: Tuple (List LocatedError) Json -> Tuple String Result -> Tuple (List LocatedError) Json
     f (Tuple errorsAcc jsonAcc) (Tuple key res) =
       let Tuple errors json = serializeWithErrors res
-      in Tuple (errors <> errorsAcc) (key := json ~> jsonAcc)
+      in Tuple (map (pushPath $ PathField key) errors <> errorsAcc) (key := json ~> jsonAcc)
 
 serializeWithErrors (ResultNullable res) =
   maybe (Tuple Nil jsonNull) serializeWithErrors res

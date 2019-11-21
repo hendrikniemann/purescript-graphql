@@ -12,6 +12,7 @@ import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Ord (genericCompare)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
+import Data.String (trim)
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff, Error, throwError, error)
 import GraphQL (graphql)
@@ -175,5 +176,7 @@ executionSpec =
 
     it "Catches errors thrown inside of resolvers" do
       testQuery
-        """{ fail }"""
-        """{"data":{"fail":null},"errors":[{"message":"Always fails at runtime.","path":[]}]}"""
+        """{ fail }""" $
+        trim """
+          {"data":{"fail":null},"errors":[{"message":"Always fails at runtime.","path":["fail"]}]}
+        """
