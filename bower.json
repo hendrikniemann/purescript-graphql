@@ -1,18 +1,13 @@
 {
   "name": "purescript-graphql",
-  "version": "1.0.0-rc1",
+  "version": "1.0.2",
   "license": "MIT",
-  "ignore": [
-    "**/.*",
-    "node_modules",
-    "bower_components",
-    "output"
-  ],
+  "ignore": ["**/.*", "node_modules", "bower_components", "output"],
   "dependencies": {
     "purescript-prelude": "^4.1.0",
     "purescript-console": "^4.1.0",
     "purescript-effect": "^2.0.0",
-    "purescript-typelevel-prelude": "^3.0.0",
+    "purescript-typelevel-prelude": "^5.0.1",
     "purescript-aff": "^5.0.1",
     "purescript-aff-promise": "^2.0.0",
     "purescript-nullable": "^4.0.0",
