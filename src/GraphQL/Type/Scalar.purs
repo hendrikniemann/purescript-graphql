@@ -2,6 +2,7 @@ module GraphQL.Type.Scalar where
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Data.Argonaut.Core as Json
 import Data.Either (Either(..), note)
 import Data.Int as Int
@@ -51,7 +52,12 @@ id = ScalarType { name, description, parseLiteral, parseValue, serialize }
   parseLiteral (AST.StringValueNode { value }) = pure value
   parseLiteral (AST.IntValueNode { value }) = pure value
   parseLiteral _ = Left "Expected string or integer value node for input type ID."
-  parseValue = Json.caseJsonString (Left "Expected string or integer JSON value.") pure
+  parseError = (Left "Expected string or integer JSON value.")
+  parseValue val =
+    Json.caseJsonString parseError pure val <|>
+    Json.caseJsonNumber parseError
+      (note "Expected integer value but got a floating point value" <<< map show <<< Int.fromNumber)
+      val
   serialize = Json.fromString
 
 boolean :: ScalarType Boolean
