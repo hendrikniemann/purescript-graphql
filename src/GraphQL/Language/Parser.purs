@@ -58,7 +58,7 @@ definition :: Parser AST.DefinitionNode
 definition = do
   header <- optionMaybe operationHeader
   v <- variableDefinitionList <* whiteSpace <|> pure Nil
-  s <- selectionSet
+  s <- selectionSet <* whiteSpace
   let { op, n } = fromMaybe { op: AST.Query, n: Nothing } header
   pure $ AST.OperationDefinitionNode {name: n, operation: op, selectionSet: s, variableDefinitions: v }
     where
@@ -138,7 +138,7 @@ value =
     <|> AST.ObjectValueNode <<< {fields: _} <$> objectParser
   where
   variableParser = string "$" *> name
-  
+
   stringParser = charListToStringParser $ quotes $ many $ noneOf ['"']
     where
     charListToStringParser = map (fromCharArray <<< toUnfoldable)
