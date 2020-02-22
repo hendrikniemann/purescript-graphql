@@ -23,7 +23,7 @@ import Type.RowList as RL
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | The schema contains the central entry points for GraphQL queries.
-newtype Schema m a = Schema { query :: ObjectType m a }
+newtype Schema m a = Schema { query :: ObjectType m a, mutation :: Maybe (ObjectType m a) }
 
 type VariableMap = Map String Json.Json
 

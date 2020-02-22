@@ -10,6 +10,7 @@ import Data.Generic.Rep.Bounded (genericBottom, genericTop)
 import Data.Generic.Rep.Enum (genericPred, genericSucc)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Ord (genericCompare)
+import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 import Data.String (trim)
@@ -53,7 +54,7 @@ instance showUserLevel :: Show UserLevel where
 
 
 testSchema :: GQL.Schema (Either Error) String
-testSchema = GQL.Schema { query: queryType }
+testSchema = GQL.Schema { query: queryType, mutation: Nothing }
 
 
 queryType :: GQL.ObjectType (Either Error) String
@@ -106,10 +107,11 @@ userLevelType =
 
 
 testQuery :: String -> String -> Aff Unit
-testQuery query expected = case map stringify (graphql testSchema query (pure "Hendrik")) of
-  Right res -> res `shouldEqual` expected
+testQuery query expected =
+  case graphql testSchema query Map.empty Nothing (pure "Hendrik") of
+  Right res -> stringify res `shouldEqual` expected
 
-  Left _ -> fail "failed to execute query"
+  Left message -> fail $ show message
 
 
 executionSpec :: Spec Unit
