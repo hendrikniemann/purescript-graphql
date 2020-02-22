@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Monad.Error.Class (class MonadError, catchError, throwError)
 import Data.Argonaut.Core as Json
+import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Enum (class Enum, enumFromTo)
 import Data.List (List, fromFoldable)
@@ -362,6 +363,8 @@ instance argsFromRowsCons ::
           -- Extract the argument value if the node can be found. If not use null value
           -- TODO: Implement default values where we would try to use the default value first
           valueNode = map (\(AST.ArgumentNode { value }) -> value) argumentNode
+          improveInputError err = "Error when reading variable '" <> reflectSymbol key <> "': " <> err
+          resolvedValue = lmap improveInputError $ argConfig.resolveValue valueNode variables
           tail =
             argsFromRows
               (RLProxy :: RLProxy ltargsd)
@@ -369,7 +372,7 @@ instance argsFromRowsCons ::
               nodes
               variables
               tailArgsDef
-      in Record.insert key <$> (argConfig.resolveValue valueNode variables) <*> tail
+      in Record.insert key <$> resolvedValue <*> tail
 
 else instance argsFromRowsNil :: ArgsFromRows RL.Nil RL.Nil argsd argsp where
   argsFromRows _ _ _ _ _ = pure $ unsafeCoerce {}
