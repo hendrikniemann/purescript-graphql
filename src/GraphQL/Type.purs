@@ -264,6 +264,9 @@ instance describeField :: Describe (Field m a argsd argsp) where
 instance describeArgument :: Describe (Argument a) where
   describe (Argument config) s = Argument (config { description = Just s })
 
+instance describeArgumentTuple :: Describe (Tuple s (Argument a)) where
+  describe (Tuple p (Argument config)) s = Tuple p (Argument (config { description = Just s }))
+
 instance describeEnumType :: Describe (EnumType a) where
   describe (EnumType config) s = EnumType ( config { description = Just s })
 
