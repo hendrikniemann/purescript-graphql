@@ -2,6 +2,7 @@ module GraphQL.Type where
 
 import Prelude
 
+import Control.Lazy (class Lazy)
 import Control.Monad.Error.Class (class MonadError, catchError, throwError)
 import Data.Argonaut.Core as Json
 import Data.Bifunctor (lmap)
@@ -10,6 +11,7 @@ import Data.Enum (class Enum, enumFromTo)
 import Data.List (List, fromFoldable)
 import Data.Map (Map, empty, insert, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Data.Traversable (class Traversable, find, traverse)
 import Data.Tuple (Tuple(..))
@@ -43,7 +45,7 @@ class MonadError Error m <= OutputType m t where
 -- | The functions `parseLiteral`, `parseValue` and `serialize` are used to convert between the
 -- | GraphQL transport formats and PureScript representations.
 -- |
--- | The GraphQL PureScript implementation comes with the four default scalars defined in the
+-- | The GraphQL PureScript implementation comes with the five default scalars defined in the
 -- | specification.
 newtype ScalarType a =
   ScalarType
@@ -72,15 +74,17 @@ instance showScalarType :: Show (ScalarType a) where
 
 newtype ObjectType m a =
   ObjectType
-    { name :: String
+    (Unit -> { name :: String
     , description :: Maybe String
     , fields :: Map String (ExecutableField m a)
-    }
+    })
 
 instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectType m) where
-  output (ObjectType o) (Just (AST.SelectionSetNode { selections })) variables val =
+  output (ObjectType fno) (Just (AST.SelectionSetNode { selections })) variables val =
     ResultObject <$> traverse serializeField selections
       where
+        o = fno unit
+
         serializeField :: AST.SelectionNode -> m (Tuple String Result)
         serializeField node@(AST.FieldNode fld) =
           let (AST.NameNode { value: name }) = fld.name
@@ -104,7 +108,12 @@ instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectTyp
   output _ _ _ _ = pure $ ResultError "Missing subselection on object type."
 
 instance showObjectType :: Show (ObjectType m a) where
-  show (ObjectType { name }) = "type " <> name
+  show (ObjectType config) = "type " <> (config unit).name
+
+derive instance newtypeObjectType :: Newtype (ObjectType m a) _
+
+instance lazyObjectType :: Lazy (ObjectType m a) where
+  defer fn = ObjectType $ unwrap (fn unit)
 
 -- | The executable field loses the information about it's arguments types. This is needed to add it
 -- | to the map of arguments of the object type. The execute function will extract the arguments of
@@ -181,7 +190,7 @@ instance outputTypeEnumType :: MonadError Error m => OutputType m EnumType where
 -- | the `:>` operator from this module.
 objectType :: forall m a. String -> ObjectType m a
 objectType name =
-  ObjectType { name, description: Nothing, fields: empty }
+  ObjectType (\_ -> { name, description: Nothing, fields: empty })
 
 -- | Create a new field for an object type. This function is typically used together with the
 -- | `:>` operator that automatically converts the field into an executable field.
@@ -257,7 +266,7 @@ class Describe a where
 infixl 8 describe as .>
 
 instance describeObjectType :: Describe (ObjectType m a) where
-  describe (ObjectType config) s = ObjectType (config { description = Just s })
+  describe (ObjectType config) s = ObjectType $ \_ -> ((config unit) { description = Just s })
 
 instance describeField :: Describe (Field m a argsd argsp) where
   describe (Field config) s = Field (config { description = Just s })
@@ -284,9 +293,11 @@ withField :: forall m a argsd argsp.
   ObjectType m a ->
   Field m a argsd argsp ->
   ObjectType m a
-withField (ObjectType objectConfig) fld@(Field { name }) =
-  ObjectType $ objectConfig { fields = insert name (makeExecutable fld) objectConfig.fields }
+withField (ObjectType objectConfigFn) fld@(Field { name }) =
+  ObjectType $ \_ -> objectConfig { fields = insert name (makeExecutable fld) objectConfig.fields }
     where
+      objectConfig = objectConfigFn unit
+
       makeExecutable :: Field m a argsd argsp -> ExecutableField m a
       makeExecutable (Field { args, serialize: serialize' }) = ExecutableField { execute: execute' }
         where
