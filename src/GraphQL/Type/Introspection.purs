@@ -51,7 +51,7 @@ schemaType = schemaType'
       :> GQL.field "kind" typeKindType
         !#> unwrap >>> _.kind
       :> GQL.nullableField "name" Scalar.string
-        !#> unwrap >>> _.name >>> pure
+        !#> unwrap >>> _.name
       :> GQL.nullableField "description" Scalar.string
         !#> unwrap >>> _.description
       :> GQL.nullableListField "fields" (defer \_ -> fieldType) -- TODO: Make nullable
@@ -63,6 +63,8 @@ schemaType = schemaType'
         !#> const (Nothing :: Maybe (Array TypeIntrospection))
       :> GQL.nullableListField "enumValue" enumValueType
         !#> unwrap >>> _.enumValues
+      :> GQL.nullableField "ofType" (defer \_ -> typeType)
+        !#> unwrap >>> _.ofType >>> map applyUnit
 
     typeKindType :: GQL.EnumType TypeKind
     typeKindType = GQL.enumType "__TypeKind"
@@ -79,7 +81,7 @@ schemaType = schemaType'
       :> GQL.nullableField "description" Scalar.string
         !#> unwrap >>> _.description
       :> GQL.field "type" (defer \_ -> typeType)
-        !#> unwrap >>> _.type >>> applyFlipped unit
+        !#> unwrap >>> _.type >>> applyUnit
       :> GQL.listField "args" (defer \_ -> inputValueType)
         !#> unwrap >>> _.args
       :> GQL.field "isDeprecated" Scalar.boolean
@@ -113,9 +115,12 @@ schemaType = schemaType'
       :> GQL.nullableField "description" Scalar.string
         !#> unwrap >>> _.description
       :> GQL.field "type" (defer \_ -> typeType)
-        !#> unwrap >>> _.type >>> applyFlipped unit
+        !#> unwrap >>> _.type >>> applyUnit
       :> GQL.nullableField "defaultValue" Scalar.string
         !#> unwrap >>> _.defaultValue
+
+    applyUnit :: forall a. (Unit -> a) -> a
+    applyUnit = applyFlipped unit
 
 -- type __Type {
 --   kind: __TypeKind!

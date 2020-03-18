@@ -66,10 +66,11 @@ instance graphqlTypeScalarType :: GraphQLType ScalarType where
   introspect (ScalarType { name, description }) =
     IntrospectionTypes.TypeIntrospection
       { kind: IntrospectionTypes.Scalar
-      , name
+      , name: Just name
       , description
       , fields: Nothing
       , enumValues: Nothing
+      , ofType: Nothing
       }
 
 instance inputTypeScalarType :: InputType ScalarType where
@@ -183,7 +184,7 @@ instance graphqlTypeEnumType :: GraphQLType EnumType where
   introspect (EnumType { name, description, values }) =
     IntrospectionTypes.TypeIntrospection
       { kind: IntrospectionTypes.Enum
-      , name
+      , name: Just name
       , description
       , fields: Nothing
       , enumValues: pure $ values <#> \(EnumValue val) ->
@@ -192,6 +193,7 @@ instance graphqlTypeEnumType :: GraphQLType EnumType where
             , description: val.description
             , deprecationReason: Nothing
             }
+      , ofType: Nothing
       }
 
 instance inputTypeEnumType :: InputType EnumType where
@@ -234,10 +236,11 @@ objectType name =
   let
     introspection = IntrospectionTypes.TypeIntrospection
       { kind: IntrospectionTypes.Object
-      , name
+      , name: Just name
       , description: Nothing
       , fields: Just []
       , enumValues: Nothing
+      , ofType: Nothing
       }
   in
     ObjectType (\_ -> { name, fields: empty, introspection })
@@ -273,7 +276,7 @@ listField name t =
     , args: {}
     , serialize
     , argumentIntrospections: []
-    , typeIntrospection: \_ -> introspect t }
+    , typeIntrospection }
       where
         serialize (AST.FieldNode node) variables _ mVals = do
           vals <- mVals
@@ -281,6 +284,16 @@ listField name t =
 
         serialize _ _ _ _ =
           pure $ ResultError "Obtained non FieldNode for field serialisation."
+
+        typeIntrospection _ =
+          IntrospectionTypes.TypeIntrospection
+            { kind: IntrospectionTypes.List
+            , name: Nothing
+            , description: Nothing
+            , fields: Nothing
+            , enumValues: Nothing
+            , ofType: Just $ \_ -> introspect t
+            }
 
 -- | Create a new field for an object type that is optional (i.e. it can be null). The resolver
 -- | must now return a `Maybe`.
@@ -297,7 +310,7 @@ nullableField name t =
     , args: {}
     , serialize
     , argumentIntrospections: []
-    , typeIntrospection: \_ -> introspect t }
+    , typeIntrospection }
       where
         serialize (AST.FieldNode node) variables _ mValue = do
           value <- mValue
@@ -311,6 +324,15 @@ nullableField name t =
         serialize _ _ _ _ =
           pure $ ResultError "Obtained non FieldNode for field serialisation."
 
+        typeIntrospection _ =
+          IntrospectionTypes.TypeIntrospection
+            { kind: IntrospectionTypes.NonNull
+            , name: Nothing
+            , description: Nothing
+            , fields: Nothing
+            , enumValues: Nothing
+            , ofType: Just $ \_ -> introspect t
+            }
 
 -- | Create a new field for an object type that is optional (i.e. it can be null) and returns a
 -- | list. The resolver must now return a `Maybe`.
@@ -328,7 +350,7 @@ nullableListField name t =
     , args: {}
     , serialize
     , argumentIntrospections: []
-    , typeIntrospection: \_ -> introspect t }
+    , typeIntrospection }
       where
         serialize (AST.FieldNode node) variables _ mVals = do
           values <- mVals
@@ -344,6 +366,24 @@ nullableListField name t =
               traverse (output t node.selectionSet variables) (pure <$> vals)
         serialize _ _ _ _ =
           pure $ ResultError "Obtained non FieldNode for field serialisation."
+
+        typeIntrospection _ =
+          IntrospectionTypes.TypeIntrospection
+            { kind: IntrospectionTypes.NonNull
+            , name: Nothing
+            , description: Nothing
+            , fields: Nothing
+            , enumValues: Nothing
+            , ofType: Just $ \_ ->
+                IntrospectionTypes.TypeIntrospection
+                  { kind: IntrospectionTypes.List
+                  , name: Nothing
+                  , description: Nothing
+                  , fields: Nothing
+                  , enumValues: Nothing
+                  , ofType: Just $ \_ -> introspect t
+                  }
+            }
 
 -- | Create a tuple with a given name and a plain argument of the given type.
 -- | The name argument tuple can then be used to be added to a field using the `?>` operator.

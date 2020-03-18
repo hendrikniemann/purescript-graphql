@@ -22,24 +22,28 @@ derive instance newtypeSchemaIntrospection :: Newtype SchemaIntrospection _
 
 newtype TypeIntrospection = TypeIntrospection
   { kind :: TypeKind
-  , name :: String
+  , name :: Maybe String
   , description :: Maybe String
   , fields :: Maybe (Array FieldIntrospection)
   , enumValues :: Maybe (Array EnumValueIntrospection)
+  , ofType :: Maybe (Unit -> TypeIntrospection)
   }
 
 
 derive instance newtypeTypeIntrospection :: Newtype TypeIntrospection _
+
 
 -- We can abuse the fact that our schema can only have unique type names to create an efficient Eq
 -- instance
 instance eqTypeIntrospection :: Eq TypeIntrospection where
   eq (TypeIntrospection t1) (TypeIntrospection t2) = t1.name == t2.name
 
+
 -- We can abuse the fact that our schema can only have unique type names to create an efficient Ord
 -- instance
 instance ordTypeIntrospection :: Ord TypeIntrospection where
   compare (TypeIntrospection t1) (TypeIntrospection t2) = compare t1.name t2.name
+
 
 newtype EnumValueIntrospection = EnumValueIntrospection
   { name :: String
