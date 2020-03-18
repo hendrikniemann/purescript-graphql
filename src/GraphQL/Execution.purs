@@ -10,7 +10,9 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Effect.Exception (Error, error)
 import GraphQL.Execution.Result (serializeResult)
 import GraphQL.Language.AST (DefinitionNode(..), DocumentNode(..), NameNode(..), OperationTypeNode(..))
-import GraphQL.Type (Schema(..), VariableMap, output)
+import GraphQL.Type (ObjectType, Schema(..), VariableMap, field, output, (!#>), (:>), introspect)
+import GraphQL.Type.Introspection (schemaType)
+import GraphQL.Type.Introspection.Datatypes (SchemaIntrospection(..))
 
 
 simpleError :: forall m. Applicative m => String -> m Json
@@ -42,7 +44,17 @@ execute (DocumentNode { definitions }) (Schema s) variables operation root = do
 
   executionResult <- case definitionNode of
     OperationDefinitionNode { operation: Query, selectionSet } ->
-      output s.query (Just selectionSet) variables root
+      let
+        schemaIntrospection =
+          SchemaIntrospection
+            { queryType: introspect s.query
+            , mutationType: map introspect s.mutation
+            }
+        metaQuery = s.query
+          :> field "__schema" (schemaType :: ObjectType m SchemaIntrospection)
+          !#> const schemaIntrospection
+      in
+        output metaQuery (Just selectionSet) variables root
 
     OperationDefinitionNode { operation: Mutation, selectionSet } ->
       maybe

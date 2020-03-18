@@ -5,19 +5,21 @@ import Prelude
 import Control.Lazy (class Lazy)
 import Control.Monad.Error.Class (class MonadError, catchError, throwError)
 import Data.Argonaut.Core as Json
+import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Enum (class Enum, enumFromTo)
 import Data.List (List, fromFoldable)
 import Data.Map (Map, empty, insert, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Newtype (class Newtype, unwrap)
+import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Data.Traversable (class Traversable, find, traverse)
 import Data.Tuple (Tuple(..))
 import Effect.Exception (Error, error, message)
 import GraphQL.Execution.Result (Result(..))
 import GraphQL.Language.AST as AST
+import GraphQL.Type.Introspection.Datatypes as IntrospectionTypes
 import Record as Record
 import Type.Data.RowList (RLProxy(..))
 import Type.Row as Row
@@ -29,13 +31,17 @@ newtype Schema m a = Schema { query :: ObjectType m a, mutation :: Maybe (Object
 
 type VariableMap = Map String Json.Json
 
+-- | The type class for all GraphQL types
+class GraphQLType t where
+  introspect :: forall a. t a -> IntrospectionTypes.TypeIntrospection
+
 -- | The input type class is used for all GraphQL types that can be used as input types.
-class InputType t where
+class GraphQLType t <= InputType t where
   input :: forall a. t a -> Maybe AST.ValueNode -> VariableMap -> Either String a
 
 -- | The output type class is used for all GraphQL types that can be used as output types.
 -- | It has instances for GraphQL types that can resolve a value within a certain monad error.
-class MonadError Error m <= OutputType m t where
+class (MonadError Error m, GraphQLType t) <= OutputType m t where
   output :: forall a. t a -> Maybe AST.SelectionSetNode -> VariableMap -> m a -> m Result
 
 -- | Scalar types are the leaf nodes of a GraphQL schema. Scalar types can be serialised into JSON
@@ -56,6 +62,16 @@ newtype ScalarType a =
     , serialize :: a -> Json.Json
     }
 
+instance graphqlTypeScalarType :: GraphQLType ScalarType where
+  introspect (ScalarType { name, description }) =
+    IntrospectionTypes.TypeIntrospection
+      { kind: IntrospectionTypes.Scalar
+      , name
+      , description
+      , fields: Nothing
+      , enumValues: Nothing
+      }
+
 instance inputTypeScalarType :: InputType ScalarType where
   input (ScalarType config) (Just node) variables = case node of
     (AST.VariableNode { name: AST.NameNode { value }}) -> do
@@ -73,22 +89,25 @@ instance showScalarType :: Show (ScalarType a) where
   show (ScalarType { name }) = "scalar " <> name
 
 newtype ObjectType m a =
-  ObjectType
-    (Unit -> { name :: String
-    , description :: Maybe String
+  ObjectType (Unit ->
+    { name :: String
     , fields :: Map String (ExecutableField m a)
-    })
+    , introspection :: IntrospectionTypes.TypeIntrospection
+    }
+  )
+
+instance graphqlTypeObjectType :: GraphQLType (ObjectType m) where
+  introspect (ObjectType configFn) = (configFn unit).introspection
 
 instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectType m) where
   output (ObjectType fno) (Just (AST.SelectionSetNode { selections })) variables val =
     ResultObject <$> traverse serializeField selections
       where
-        o = fno unit
-
         serializeField :: AST.SelectionNode -> m (Tuple String Result)
         serializeField node@(AST.FieldNode fld) =
           let (AST.NameNode { value: name }) = fld.name
               (AST.NameNode { value: alias }) = fromMaybe fld.name fld.alias
+              o = fno unit
           in case lookup name o.fields of
             Just (ExecutableField { execute }) ->
               Tuple alias <$>
@@ -129,6 +148,8 @@ newtype Field m a argsd argsp =
   Field
     { name :: String
     , description :: Maybe String
+    , typeIntrospection :: Unit -> IntrospectionTypes.TypeIntrospection
+    , argumentIntrospections :: Array IntrospectionTypes.InputValueIntrospection
     , args :: Record argsd
     , serialize :: AST.SelectionNode -> VariableMap -> Record argsp -> m a -> m Result
     }
@@ -138,8 +159,11 @@ newtype Field m a argsd argsp =
 newtype Argument a =
   Argument
     { description :: Maybe String
+    , typeIntrospection :: Unit -> IntrospectionTypes.TypeIntrospection
     , resolveValue :: Maybe AST.ValueNode -> VariableMap -> Either String a
     }
+
+derive instance newtypeArgument :: Newtype (Argument a) _
 
 newtype EnumType a =
   EnumType
@@ -154,6 +178,21 @@ newtype EnumValue a =
     , description :: Maybe String
     , value :: a
     , isValue :: a -> Boolean }
+
+instance graphqlTypeEnumType :: GraphQLType EnumType where
+  introspect (EnumType { name, description, values }) =
+    IntrospectionTypes.TypeIntrospection
+      { kind: IntrospectionTypes.Enum
+      , name
+      , description
+      , fields: Nothing
+      , enumValues: pure $ values <#> \(EnumValue val) ->
+          IntrospectionTypes.EnumValueIntrospection
+            { name: val.name
+            , description: val.description
+            , deprecationReason: Nothing
+            }
+      }
 
 instance inputTypeEnumType :: InputType EnumType where
   input (EnumType config) (Just node) variables =
@@ -192,15 +231,31 @@ instance outputTypeEnumType :: MonadError Error m => OutputType m EnumType where
 -- | the `:>` operator from this module.
 objectType :: forall m a. String -> ObjectType m a
 objectType name =
-  ObjectType (\_ -> { name, description: Nothing, fields: empty })
+  let
+    introspection = IntrospectionTypes.TypeIntrospection
+      { kind: IntrospectionTypes.Object
+      , name
+      , description: Nothing
+      , fields: Just []
+      , enumValues: Nothing
+      }
+  in
+    ObjectType (\_ -> { name, fields: empty, introspection })
 
 -- | Create a new field for an object type. This function is typically used together with the
 -- | `:>` operator that automatically converts the field into an executable field.
 field :: forall m t a. OutputType m t => MonadError Error m => String -> t a -> Field m a () ()
-field name t = Field { name, description: Nothing, args: {}, serialize }
-  where
-    serialize (AST.FieldNode node) variables _ val = output t node.selectionSet variables val
-    serialize _ _ _ _ = pure $ ResultError "Obtained non FieldNode for field serialisation."
+field name t =
+  Field
+    { name
+    , description: Nothing
+    , args: {}
+    , serialize
+    , argumentIntrospections: []
+    , typeIntrospection: \_ -> introspect t }
+      where
+        serialize (AST.FieldNode node) variables _ val = output t node.selectionSet variables val
+        serialize _ _ _ _ = pure $ ResultError "Obtained non FieldNode for field serialisation."
 
 -- | Create a new field for an object type that is a list. You can return any `Foldable` in the
 -- | resolver.
@@ -211,14 +266,21 @@ listField :: forall m f t a.
   String ->
   t a ->
   Field m (f a) () ()
-listField name t = Field { name, description: Nothing, args: {}, serialize }
-  where
-    serialize (AST.FieldNode node) variables _ mVals = do
-      vals <- mVals
-      ResultList <$> fromFoldable <$> traverse (output t node.selectionSet variables) (pure <$> vals)
+listField name t =
+  Field
+    { name
+    , description: Nothing
+    , args: {}
+    , serialize
+    , argumentIntrospections: []
+    , typeIntrospection: \_ -> introspect t }
+      where
+        serialize (AST.FieldNode node) variables _ mVals = do
+          vals <- mVals
+          ResultList <$> fromFoldable <$> traverse (output t node.selectionSet variables) (pure <$> vals)
 
-    serialize _ _ _ _ =
-      pure $ ResultError "Obtained non FieldNode for field serialisation."
+        serialize _ _ _ _ =
+          pure $ ResultError "Obtained non FieldNode for field serialisation."
 
 -- | Create a new field for an object type that is optional (i.e. it can be null). The resolver
 -- | must now return a `Maybe`.
@@ -228,26 +290,71 @@ nullableField :: forall m t a.
   String ->
   t a ->
   Field m (Maybe a) () ()
-nullableField name t = Field { name, description: Nothing, args: {}, serialize }
-  where
-    serialize (AST.FieldNode node) variables _ mValue = do
-      value <- mValue
-      case value of
-        Nothing ->
-          pure $ ResultNullable Nothing
+nullableField name t =
+  Field
+    { name
+    , description: Nothing
+    , args: {}
+    , serialize
+    , argumentIntrospections: []
+    , typeIntrospection: \_ -> introspect t }
+      where
+        serialize (AST.FieldNode node) variables _ mValue = do
+          value <- mValue
+          case value of
+            Nothing ->
+              pure $ ResultNullable Nothing
 
-        Just val ->
-          ResultNullable <$> Just <$> output t node.selectionSet variables (pure val)
+            Just val ->
+              ResultNullable <$> Just <$> output t node.selectionSet variables (pure val)
 
-    serialize _ _ _ _ =
-      pure $ ResultError "Obtained non FieldNode for field serialisation."
+        serialize _ _ _ _ =
+          pure $ ResultError "Obtained non FieldNode for field serialisation."
+
+
+-- | Create a new field for an object type that is optional (i.e. it can be null) and returns a
+-- | list. The resolver must now return a `Maybe`.
+nullableListField :: forall m f t a.
+  MonadError Error m =>
+  Traversable f =>
+  OutputType m t =>
+  String ->
+  t a ->
+  Field m (Maybe (f a)) () ()
+nullableListField name t =
+  Field
+    { name
+    , description: Nothing
+    , args: {}
+    , serialize
+    , argumentIntrospections: []
+    , typeIntrospection: \_ -> introspect t }
+      where
+        serialize (AST.FieldNode node) variables _ mVals = do
+          values <- mVals
+          case values of
+            Nothing ->
+              pure $ ResultNullable Nothing
+
+            Just vals ->
+              ResultNullable <$>
+              Just <$>
+              ResultList <$>
+              fromFoldable <$>
+              traverse (output t node.selectionSet variables) (pure <$> vals)
+        serialize _ _ _ _ =
+          pure $ ResultError "Obtained non FieldNode for field serialisation."
 
 -- | Create a tuple with a given name and a plain argument of the given type.
 -- | The name argument tuple can then be used to be added to a field using the `?>` operator.
 arg :: forall t a n. InputType t => IsSymbol n => t a -> SProxy n -> Tuple (SProxy n) (Argument a)
 arg t name =
     Tuple (SProxy :: _ n) $
-      Argument { description: Nothing, resolveValue: input t }
+      Argument
+        { description: Nothing
+        , resolveValue: input t
+        , typeIntrospection: \_ -> introspect t
+        }
 
 -- * Combinator operators
 
@@ -268,7 +375,13 @@ class Describe a where
 infixl 8 describe as .>
 
 instance describeObjectType :: Describe (ObjectType m a) where
-  describe (ObjectType config) s = ObjectType $ \_ -> ((config unit) { description = Just s })
+  describe (ObjectType configFn) s =
+      ObjectType $ \_ ->
+        let
+          config = configFn unit
+          newIntrospection = wrap $ (unwrap config.introspection) { description = Just s }
+        in
+          config { introspection = newIntrospection }
 
 instance describeField :: Describe (Field m a argsd argsp) where
   describe (Field config) s = Field (config { description = Just s })
@@ -295,10 +408,31 @@ withField :: forall m a argsd argsp.
   ObjectType m a ->
   Field m a argsd argsp ->
   ObjectType m a
-withField (ObjectType objectConfigFn) fld@(Field { name }) =
-  ObjectType $ \_ -> objectConfig { fields = insert name (makeExecutable fld) objectConfig.fields }
+withField (ObjectType objectConfigFn) fld@(
+  Field { name, description, typeIntrospection, argumentIntrospections }
+) =
+  ObjectType updated
     where
-      objectConfig = objectConfigFn unit
+      updated _ =
+        let
+          objectConfig = objectConfigFn unit
+          updatedFields = insert name (makeExecutable fld) objectConfig.fields
+
+          fieldIntrospection = IntrospectionTypes.FieldIntrospection
+            { name
+            , description
+            , args: argumentIntrospections
+            , type: typeIntrospection
+            , deprecationReason: Nothing
+            }
+
+          introspection = unwrap objectConfig.introspection
+
+          updatedIntrospection =
+            IntrospectionTypes.TypeIntrospection $
+              introspection { fields = map (flip Array.snoc fieldIntrospection) (introspection.fields) }
+        in
+          objectConfig { fields = updatedFields, introspection = updatedIntrospection }
 
       makeExecutable :: Field m a argsd argsp -> ExecutableField m a
       makeExecutable (Field { args, serialize: serialize' }) = ExecutableField { execute: execute' }
@@ -405,7 +539,7 @@ withArgument :: forall m a arg n argsdold argsdnew argspold argspnew.
   Tuple (SProxy n) (Argument arg) ->
   Field m a argsdnew argspnew
 withArgument (Field fieldConfig) (Tuple proxy argument) =
-  Field $ fieldConfig { args = args', serialize = serialize' }
+  Field $ fieldConfig { args = args', serialize = serialize', argumentIntrospections = intros' }
     where
       args' :: Record argsdnew
       args' = Record.insert proxy argument fieldConfig.args
@@ -418,6 +552,17 @@ withArgument (Field fieldConfig) (Tuple proxy argument) =
         m Result
       serialize' node variables argsnew val =
         fieldConfig.serialize node variables (Record.delete proxy argsnew) val
+
+      intros' :: Array IntrospectionTypes.InputValueIntrospection
+      intros' = Array.snoc fieldConfig.argumentIntrospections
+        (
+          IntrospectionTypes.InputValueIntrospection
+            { name: reflectSymbol proxy
+            , description: _.description $ unwrap argument
+            , type: _.typeIntrospection $ unwrap argument
+            , defaultValue: Nothing
+            }
+        )
 
 -- | Adds an argument to a field that can be used in the resolver.
 -- |
