@@ -105,7 +105,9 @@ instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectTyp
         -- TODO: This branch needs fixing. It is for fragment spreads and so on. Maybe normalise
         --       the query first and completely eliminate the branch...
         serializeField _ = pure $ Tuple "unknown" $ ResultError "Unexpected fragment spread!"
+
   output _ _ _ _ = pure $ ResultError "Missing subselection on object type."
+
 
 instance showObjectType :: Show (ObjectType m a) where
   show (ObjectType config) = "type " <> (config unit).name
@@ -113,7 +115,7 @@ instance showObjectType :: Show (ObjectType m a) where
 derive instance newtypeObjectType :: Newtype (ObjectType m a) _
 
 instance lazyObjectType :: Lazy (ObjectType m a) where
-  defer fn = ObjectType $ unwrap (fn unit)
+  defer fn = ObjectType $ \_ -> unwrap (fn unit) unit
 
 -- | The executable field loses the information about it's arguments types. This is needed to add it
 -- | to the map of arguments of the object type. The execute function will extract the arguments of
