@@ -10,7 +10,7 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Effect.Exception (Error, error)
 import GraphQL.Execution.Result (serializeResult)
 import GraphQL.Language.AST (DefinitionNode(..), DocumentNode(..), NameNode(..), OperationTypeNode(..))
-import GraphQL.Type (ObjectType, Schema(..), VariableMap, field, output, (!#>), (:>), introspect)
+import GraphQL.Type (ObjectType, Schema(..), ExecutionContext, field, output, (!#>), (:>), introspect)
 import GraphQL.Type.Introspection (schemaType)
 import GraphQL.Type.Introspection.Datatypes (SchemaIntrospection(..))
 
@@ -23,7 +23,7 @@ execute :: forall m a.
   MonadError Error m =>
   DocumentNode ->
   Schema m a ->
-  VariableMap ->
+  ExecutionContext ->
   Maybe String ->
   m a ->
   m Json

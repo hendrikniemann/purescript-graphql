@@ -55,7 +55,10 @@ document :: Parser AST.DocumentNode
 document = AST.DocumentNode <<< {definitions: _} <$> many definition
 
 definition :: Parser AST.DefinitionNode
-definition = do
+definition = operationDefinition <|> fragmentDefinition
+
+operationDefinition :: Parser AST.DefinitionNode
+operationDefinition = do
   header <- optionMaybe operationHeader
   v <- variableDefinitionList <* whiteSpace <|> pure Nil
   s <- selectionSet <* whiteSpace
@@ -69,6 +72,18 @@ definition = do
       op <- toOperation <$> (token "query" <|> token "mutation")
       n <- optionMaybe $ name <* whiteSpace
       pure { op, n }
+
+fragmentDefinition :: Parser AST.DefinitionNode
+fragmentDefinition = do
+  n <- token "fragment" *> whiteSpace *> name <* whiteSpace
+  tn <- token "on" *> whiteSpace *> name <* whiteSpace
+  s <- selectionSet <* whiteSpace
+  pure $ AST.FragmentDefinitionNode
+    { directives: mempty
+    , name: n
+    , selectionSet: s
+    , typeCondition: AST.SimpleNamedTypeNode { name: tn }
+    }
 
 variableDefinition :: Parser AST.VariableDefinitionNode
 variableDefinition = do
@@ -98,11 +113,11 @@ selectionSet =
 selection :: Parser AST.SelectionNode
 selection =
   try (whiteSpace *> defer \_ -> field <* whiteSpace)
-    <|> try (whiteSpace *> fragmentSpread <* whiteSpace)
+    <|> try (fragmentSpread <* whiteSpace)
     <|> (whiteSpace *> inlineFragment <* whiteSpace)
   where
   fragmentSpread :: Parser AST.SelectionNode
-  fragmentSpread = fail "Fragment spread not yet supported"
+  fragmentSpread = AST.FragmentSpreadNode <<< {name: _, directives: Nil } <$> (token "..." *> name)
 
   inlineFragment :: Parser AST.SelectionNode
   inlineFragment = fail "Inline Fragments not yet supported"

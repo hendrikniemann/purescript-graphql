@@ -9,7 +9,7 @@ import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Enum (class Enum, enumFromTo)
-import Data.List (List, fromFoldable)
+import Data.List (List, fromFoldable, singleton)
 import Data.Map (Map, empty, insert, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
@@ -29,7 +29,10 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | The schema contains the central entry points for GraphQL queries.
 newtype Schema m a = Schema { query :: ObjectType m a, mutation :: Maybe (ObjectType m a) }
 
-type VariableMap = Map String Json.Json
+type ExecutionContext =
+  { variables :: Map String Json.Json
+  , fragments :: Map String AST.DefinitionNode
+  }
 
 -- | The type class for all GraphQL types
 class GraphQLType t where
@@ -37,12 +40,12 @@ class GraphQLType t where
 
 -- | The input type class is used for all GraphQL types that can be used as input types.
 class GraphQLType t <= InputType t where
-  input :: forall a. t a -> Maybe AST.ValueNode -> VariableMap -> Either String a
+  input :: forall a. t a -> Maybe AST.ValueNode -> ExecutionContext -> Either String a
 
 -- | The output type class is used for all GraphQL types that can be used as output types.
 -- | It has instances for GraphQL types that can resolve a value within a certain monad error.
 class (MonadError Error m, GraphQLType t) <= OutputType m t where
-  output :: forall a. t a -> Maybe AST.SelectionSetNode -> VariableMap -> m a -> m Result
+  output :: forall a. t a -> Maybe AST.SelectionSetNode -> ExecutionContext -> m a -> m Result
 
 -- | Scalar types are the leaf nodes of a GraphQL schema. Scalar types can be serialised into JSON
 -- | or obtained from a JSON when read from the variables provided by a query. Furthermore values
@@ -74,10 +77,10 @@ instance graphqlTypeScalarType :: GraphQLType ScalarType where
       }
 
 instance inputTypeScalarType :: InputType ScalarType where
-  input (ScalarType config) (Just node) variables = case node of
+  input (ScalarType config) (Just node) execCtx = case node of
     (AST.VariableNode { name: AST.NameNode { value }}) -> do
       json <- note ("Required variable `" <> value <> "` was not provided.") $
-        lookup value variables
+        lookup value execCtx.variables
       config.parseValue json
     _ -> config.parseLiteral node
   input _ Nothing _ = Left "Must provide value for required scalar."
@@ -101,8 +104,8 @@ instance graphqlTypeObjectType :: GraphQLType (ObjectType m) where
   introspect (ObjectType configFn) = (configFn unit).introspection
 
 instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectType m) where
-  output (ObjectType fno) (Just (AST.SelectionSetNode { selections })) variables val =
-    ResultObject <$> traverse serializeField selections
+  output (ObjectType fno) (Just (AST.SelectionSetNode { selections })) execCtx val =
+    ResultObject <$> traverse serializeField (selections >>= collectField)
       where
         serializeField :: AST.SelectionNode -> m (Tuple String Result)
         serializeField node@(AST.FieldNode fld) =
@@ -113,7 +116,7 @@ instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectTyp
             Just (ExecutableField { execute }) ->
               Tuple alias <$>
                 (flip catchError (message >>> ResultError >>> pure) $
-                  execute val node variables)
+                  execute val node execCtx)
             Nothing ->
               if
                 name == "__typename"
@@ -125,6 +128,20 @@ instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectTyp
         -- TODO: This branch needs fixing. It is for fragment spreads and so on. Maybe normalise
         --       the query first and completely eliminate the branch...
         serializeField _ = pure $ Tuple "unknown" $ ResultError "Unexpected fragment spread!"
+
+        -- Flatten the selection node structure by spreading all fragments into the list
+        collectField :: AST.SelectionNode -> List AST.SelectionNode
+        collectField n@(AST.FieldNode _) = singleton n
+        collectField (AST.InlineFragmentNode {
+          selectionSet: (AST.SelectionSetNode { selections: s })
+        }) = collectField =<< s
+        collectField (AST.FragmentSpreadNode { name: AST.NameNode n }) =
+          case lookup n.value execCtx.fragments of
+            Just (AST.FragmentDefinitionNode {
+              selectionSet: AST.SelectionSetNode { selections: s }
+            }) -> collectField =<< s
+            _ -> mempty
+
 
   output _ _ _ _ = pure $ ResultError "Missing subselection on object type."
 
@@ -141,7 +158,7 @@ instance lazyObjectType :: Lazy (ObjectType m a) where
 -- | to the map of arguments of the object type. The execute function will extract the arguments of
 -- | the field from the AST.
 newtype ExecutableField m a =
-  ExecutableField { execute :: m a -> AST.SelectionNode -> VariableMap -> m Result }
+  ExecutableField { execute :: m a -> AST.SelectionNode -> ExecutionContext -> m Result }
 
 -- | Object types can have fields. Fields are constructed using the `field` function from this
 -- | module and added to object types using the `:>` operator.
@@ -152,7 +169,7 @@ newtype Field m a argsd argsp =
     , typeIntrospection :: Unit -> IntrospectionTypes.TypeIntrospection
     , argumentIntrospections :: Array IntrospectionTypes.InputValueIntrospection
     , args :: Record argsd
-    , serialize :: AST.SelectionNode -> VariableMap -> Record argsp -> m a -> m Result
+    , serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> m a -> m Result
     }
 
 -- | Fields can have multiple arguments. Arguments are constructed using the `arg` function from
@@ -161,7 +178,7 @@ newtype Argument a =
   Argument
     { description :: Maybe String
     , typeIntrospection :: Unit -> IntrospectionTypes.TypeIntrospection
-    , resolveValue :: Maybe AST.ValueNode -> VariableMap -> Either String a
+    , resolveValue :: Maybe AST.ValueNode -> ExecutionContext -> Either String a
     }
 
 derive instance newtypeArgument :: Newtype (Argument a) _
@@ -197,14 +214,14 @@ instance graphqlTypeEnumType :: GraphQLType EnumType where
       }
 
 instance inputTypeEnumType :: InputType EnumType where
-  input (EnumType config) (Just node) variables =
+  input (EnumType config) (Just node) execContext =
     let lookupName name =
           note ("Unknown enum value `" <> name <> "` for type `" <> config.name <> "`.") $
             find (\(EnumValue val) -> val.name == name) config.values
     in case node of
       AST.VariableNode { name: AST.NameNode { value: name } } -> do
         json <- note ("Required variable `" <> name <> "` was not provided.") $
-          lookup name variables
+          lookup name execContext.variables
         EnumValue val <- Json.caseJsonString (Left "Enum values must be strings.") lookupName json
         pure val.value
 
@@ -217,7 +234,7 @@ instance inputTypeEnumType :: InputType EnumType where
   input _ _ _ = Left "Missing value for required argument."
 
 instance outputTypeEnumType :: MonadError Error m => OutputType m EnumType where
-  output :: forall a. EnumType a -> Maybe AST.SelectionSetNode -> VariableMap -> m a -> m Result
+  output :: forall a. EnumType a -> Maybe AST.SelectionSetNode -> ExecutionContext -> m a -> m Result
   output (EnumType config) Nothing _ mValue = do
     value <- mValue
     case find (\(EnumValue { isValue }) -> isValue value) config.values of
@@ -288,9 +305,9 @@ listField name t =
     , argumentIntrospections: []
     , typeIntrospection }
       where
-        serialize (AST.FieldNode node) variables _ mVals = do
+        serialize (AST.FieldNode node) execCtx _ mVals = do
           vals <- mVals
-          ResultList <$> fromFoldable <$> traverse (output t node.selectionSet variables) (pure <$> vals)
+          ResultList <$> fromFoldable <$> traverse (output t node.selectionSet execCtx) (pure <$> vals)
 
         serialize _ _ _ _ =
           pure $ ResultError "Obtained non FieldNode for field serialisation."
@@ -330,14 +347,14 @@ nullableField name t =
     , argumentIntrospections: []
     , typeIntrospection }
       where
-        serialize (AST.FieldNode node) variables _ mValue = do
+        serialize (AST.FieldNode node) execCtx _ mValue = do
           value <- mValue
           case value of
             Nothing ->
               pure $ ResultNullable Nothing
 
             Just val ->
-              ResultNullable <$> Just <$> output t node.selectionSet variables (pure val)
+              ResultNullable <$> Just <$> output t node.selectionSet execCtx (pure val)
 
         serialize _ _ _ _ =
           pure $ ResultError "Obtained non FieldNode for field serialisation."
@@ -479,7 +496,7 @@ withField (ObjectType objectConfigFn) fld@(
       makeExecutable :: Field m a argsd argsp -> ExecutableField m a
       makeExecutable (Field { args, serialize: serialize' }) = ExecutableField { execute: execute' }
         where
-          execute' :: m a -> AST.SelectionNode -> VariableMap -> m Result
+          execute' :: m a -> AST.SelectionNode -> ExecutionContext -> m Result
           execute' val node@(AST.FieldNode { arguments: argumentNodes }) variables =
             case argsFromDefinition argumentNodes variables args of
               Right argumentValues -> serialize' node variables argumentValues val
@@ -502,7 +519,7 @@ class ArgsDefToArgsParam (argsd :: # Type) (argsp :: # Type)
     , argsp -> argsd where
       argsFromDefinition ::
         List AST.ArgumentNode ->
-        VariableMap ->
+        ExecutionContext ->
         Record argsd ->
         Either String (Record argsp)
 
@@ -525,7 +542,7 @@ class ArgsFromRows
       RLProxy largsd ->
       RLProxy largsp ->
       List AST.ArgumentNode ->
-      VariableMap ->
+      ExecutionContext ->
       Record argsd ->
       Either String (Record argsp)
 
@@ -588,7 +605,7 @@ withArgument (Field fieldConfig) (Tuple proxy argument) =
 
       serialize' ::
         AST.SelectionNode ->
-        VariableMap ->
+        ExecutionContext ->
         Record argspnew ->
         m a ->
         m Result
@@ -628,7 +645,7 @@ withResolver :: forall m a b argsd argsp.
 withResolver (Field fieldConfig) resolver =
   Field $ fieldConfig { serialize = serialize }
     where
-      serialize :: AST.SelectionNode -> VariableMap -> Record argsp -> m b -> m Result
+      serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> m b -> m Result
       serialize node variables args val =
         fieldConfig.serialize node variables args (resolver args val)
 

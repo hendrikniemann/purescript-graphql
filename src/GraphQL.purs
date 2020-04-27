@@ -5,11 +5,15 @@ import Prelude
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Data.Argonaut.Core (Json)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe)
+import Data.List (mapMaybe)
+import Data.Map (Map, fromFoldable)
+import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
 import Effect.Exception (Error, error)
 import GraphQL.Execution (execute)
 import GraphQL.Language (parse)
-import GraphQL.Type (Schema, VariableMap)
+import GraphQL.Language.AST as AST
+import GraphQL.Type (Schema)
 
 -- | Parses a GraphQL query string into a document and then executes the query given the parameters
 -- |
@@ -24,10 +28,17 @@ graphql ::
   MonadError Error m =>
   Schema m a ->
   String ->
-  VariableMap ->
+  Map String Json ->
   Maybe String ->
   m a ->
   m Json
-graphql schema query variables operation root = case parse query of
+graphql schema query variables operation root =
+  case parse query of
   Left message -> throwError $ error $ "Parsing Error: " <> message
-  Right document -> execute document schema variables operation root
+  Right document@(AST.DocumentNode { definitions }) ->
+    let
+      fragments = fromFoldable $ definitions # mapMaybe \def -> case def of
+        f@(AST.FragmentDefinitionNode { name: AST.NameNode n }) -> pure $ Tuple n.value f
+        _ -> Nothing
+    in
+      execute document schema { variables, fragments } operation root
