@@ -255,10 +255,20 @@ field name t =
     , args: {}
     , serialize
     , argumentIntrospections: []
-    , typeIntrospection: \_ -> introspect t }
+    , typeIntrospection }
       where
-        serialize (AST.FieldNode node) variables _ val = output t node.selectionSet variables val
+        serialize (AST.FieldNode node) execCtx _ val = output t node.selectionSet execCtx val
         serialize _ _ _ _ = pure $ ResultError "Obtained non FieldNode for field serialisation."
+
+        typeIntrospection _ =
+          IntrospectionTypes.TypeIntrospection
+            { kind: IntrospectionTypes.NonNull
+            , name: Nothing
+            , description: Nothing
+            , fields: Nothing
+            , enumValues: Nothing
+            , ofType: Just $ \_ -> introspect t
+            }
 
 -- | Create a new field for an object type that is a list. You can return any `Foldable` in the
 -- | resolver.
@@ -287,12 +297,20 @@ listField name t =
 
         typeIntrospection _ =
           IntrospectionTypes.TypeIntrospection
-            { kind: IntrospectionTypes.List
+            { kind: IntrospectionTypes.NonNull
             , name: Nothing
             , description: Nothing
             , fields: Nothing
             , enumValues: Nothing
-            , ofType: Just $ \_ -> introspect t
+            , ofType: Just $ \_ ->
+                IntrospectionTypes.TypeIntrospection
+                  { kind: IntrospectionTypes.List
+                  , name: Nothing
+                  , description: Nothing
+                  , fields: Nothing
+                  , enumValues: Nothing
+                  , ofType: Just $ \_ -> introspect t
+                  }
             }
 
 -- | Create a new field for an object type that is optional (i.e. it can be null). The resolver
@@ -324,15 +342,7 @@ nullableField name t =
         serialize _ _ _ _ =
           pure $ ResultError "Obtained non FieldNode for field serialisation."
 
-        typeIntrospection _ =
-          IntrospectionTypes.TypeIntrospection
-            { kind: IntrospectionTypes.NonNull
-            , name: Nothing
-            , description: Nothing
-            , fields: Nothing
-            , enumValues: Nothing
-            , ofType: Just $ \_ -> introspect t
-            }
+        typeIntrospection _ = introspect t
 
 -- | Create a new field for an object type that is optional (i.e. it can be null) and returns a
 -- | list. The resolver must now return a `Maybe`.
@@ -369,20 +379,12 @@ nullableListField name t =
 
         typeIntrospection _ =
           IntrospectionTypes.TypeIntrospection
-            { kind: IntrospectionTypes.NonNull
+            { kind: IntrospectionTypes.List
             , name: Nothing
             , description: Nothing
             , fields: Nothing
             , enumValues: Nothing
-            , ofType: Just $ \_ ->
-                IntrospectionTypes.TypeIntrospection
-                  { kind: IntrospectionTypes.List
-                  , name: Nothing
-                  , description: Nothing
-                  , fields: Nothing
-                  , enumValues: Nothing
-                  , ofType: Just $ \_ -> introspect t
-                  }
+            , ofType: Just $ \_ -> introspect t
             }
 
 -- | Create a tuple with a given name and a plain argument of the given type.

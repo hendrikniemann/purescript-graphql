@@ -11,7 +11,7 @@ import Data.Newtype (unwrap)
 import Effect.Exception (Error)
 import GraphQL.Type ((!#>), (.>), (:>))
 import GraphQL.Type as GQL
-import GraphQL.Type.Introspection.Datatypes (EnumValueIntrospection, FieldIntrospection, InputValueIntrospection, SchemaIntrospection, TypeIntrospection, TypeKind)
+import GraphQL.Type.Introspection.Datatypes (EnumValueIntrospection, FieldIntrospection, InputValueIntrospection, SchemaIntrospection, TypeIntrospection(..), TypeKind(..))
 import GraphQL.Type.Introspection.Util (collectTypes)
 import GraphQL.Type.Scalar as Scalar
 
@@ -37,6 +37,14 @@ schemaType = schemaType'
           If this server supports mutation, the type that mutation operations will be rooted at.
         """
         !#> unwrap >>> _.mutationType
+      :> GQL.nullableField "subscriptionType" (typeType :: GQL.ObjectType m TypeIntrospection)
+        .> """
+          If this server supports subscriptons, the type that subscription operations will be rooted
+          at.
+        """
+        !#> const Nothing
+      :> GQL.listField "directives" Scalar.string
+        !#> const []
 
     typeType :: GQL.ObjectType m TypeIntrospection
     typeType = GQL.objectType "__Type"
@@ -58,11 +66,17 @@ schemaType = schemaType'
         !#> unwrap >>> _.fields
       -- For spec compliance; this implementation does not support interfaces or unions yet
       :> GQL.nullableListField "interfaces" (defer \_ -> typeType)
-        !#> const (Nothing :: Maybe (Array TypeIntrospection))
+        !#> (\(TypeIntrospection t) ->
+          if t.kind == Object
+          then Just []
+          else (Nothing :: Maybe (Array TypeIntrospection))
+        )
       :> GQL.nullableListField "possibleTypes" (defer \_ -> typeType)
         !#> const (Nothing :: Maybe (Array TypeIntrospection))
-      :> GQL.nullableListField "enumValue" enumValueType
+      :> GQL.nullableListField "enumValues" enumValueType
         !#> unwrap >>> _.enumValues
+      :> GQL.nullableListField "inputFields" (defer \_ -> inputValueType)
+        !#> const (Nothing :: Maybe (Array InputValueIntrospection))
       :> GQL.nullableField "ofType" (defer \_ -> typeType)
         !#> unwrap >>> _.ofType >>> map applyUnit
 
