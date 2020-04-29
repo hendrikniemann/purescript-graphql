@@ -63,19 +63,19 @@ queryType =
     .> "The root query type"
     :> GQL.field "hello" Scalar.string
       .> "A simple test field that connects the root string with a greeting."
-      !> (\_ -> map (\p -> "Hello " <> p <> "!"))
+      !> (\_ p -> pure $ "Hello " <> p <> "!")
     :> GQL.field "greet" Scalar.string
       .> "A field that takes a name and responds with a presonalized greeting."
       ?> GQL.arg Scalar.string (SProxy :: SProxy "name")
       !> (\{ name } _ -> pure $ "Greetings " <> name <> "!")
     :> GQL.field "test" Scalar.int
-      !!> (_ $> 42)
+      !#> const 42
     :> GQL.field "nested" userType
-      !!> (_ $> User { id: "user1", name: "Hendrik", age: 25, level: NormalUser })
+      !#> (const $ User { id: "user1", name: "Hendrik", age: 25, level: NormalUser })
     :> GQL.listField "someList" Scalar.string
-      !!> (_ $> ["This", "is", "a", "little", "list"])
+      !#> (const ["This", "is", "a", "little", "list"])
     :> GQL.nullableField "nullable" Scalar.float
-      !!> (_ $> Nothing)
+      !#> (const Nothing)
     :> GQL.field "reflect" Scalar.string
       ?> GQL.arg userLevelType (SProxy :: _ "argIn")
       !> (\{ argIn } _ -> pure $ show argIn)
