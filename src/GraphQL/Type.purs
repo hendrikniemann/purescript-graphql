@@ -104,11 +104,9 @@ instance graphqlTypeObjectType :: GraphQLType (ObjectType m) where
   introspect (ObjectType configFn) = (configFn unit).introspection
 
 instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectType m) where
-  output (ObjectType fno) (Just (AST.SelectionSetNode { selections })) execCtx val =
-    ResultObject <$> traverse serializeField (selections >>= collectField)
-      where
-        serializeField :: AST.SelectionNode -> m (Tuple String Result)
-        serializeField node@(AST.FieldNode fld) =
+  output (ObjectType fno) (Just (AST.SelectionSetNode { selections })) execCtx mValue = do
+    value <- mValue
+    let serializeField node@(AST.FieldNode fld) =
           let (AST.NameNode { value: name }) = fld.name
               (AST.NameNode { value: alias }) = fromMaybe fld.name fld.alias
               o = fno unit
@@ -116,7 +114,7 @@ instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectTyp
             Just (ExecutableField { execute }) ->
               Tuple alias <$>
                 (flip catchError (message >>> ResultError >>> pure) $
-                  execute val node execCtx)
+                  execute value node execCtx)
             Nothing ->
               if
                 name == "__typename"
@@ -128,7 +126,8 @@ instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectTyp
         -- TODO: This branch needs fixing. It is for fragment spreads and so on. Maybe normalise
         --       the query first and completely eliminate the branch...
         serializeField _ = pure $ Tuple "unknown" $ ResultError "Unexpected fragment spread!"
-
+    ResultObject <$> traverse serializeField (selections >>= collectField)
+      where
         -- Flatten the selection node structure by spreading all fragments into the list
         collectField :: AST.SelectionNode -> List AST.SelectionNode
         collectField n@(AST.FieldNode _) = singleton n
@@ -158,7 +157,7 @@ instance lazyObjectType :: Lazy (ObjectType m a) where
 -- | to the map of arguments of the object type. The execute function will extract the arguments of
 -- | the field from the AST.
 newtype ExecutableField m a =
-  ExecutableField { execute :: m a -> AST.SelectionNode -> ExecutionContext -> m Result }
+  ExecutableField { execute :: a -> AST.SelectionNode -> ExecutionContext -> m Result }
 
 -- | Object types can have fields. Fields are constructed using the `field` function from this
 -- | module and added to object types using the `:>` operator.
@@ -169,7 +168,7 @@ newtype Field m a argsd argsp =
     , typeIntrospection :: Unit -> IntrospectionTypes.TypeIntrospection
     , argumentIntrospections :: Array IntrospectionTypes.InputValueIntrospection
     , args :: Record argsd
-    , serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> m a -> m Result
+    , serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> a -> m Result
     }
 
 -- | Fields can have multiple arguments. Arguments are constructed using the `arg` function from
@@ -274,7 +273,7 @@ field name t =
     , argumentIntrospections: []
     , typeIntrospection }
       where
-        serialize (AST.FieldNode node) execCtx _ val = output t node.selectionSet execCtx val
+        serialize (AST.FieldNode node) execCtx _ val = output t node.selectionSet execCtx (pure val)
         serialize _ _ _ _ = pure $ ResultError "Obtained non FieldNode for field serialisation."
 
         typeIntrospection _ =
@@ -305,8 +304,7 @@ listField name t =
     , argumentIntrospections: []
     , typeIntrospection }
       where
-        serialize (AST.FieldNode node) execCtx _ mVals = do
-          vals <- mVals
+        serialize (AST.FieldNode node) execCtx _ vals = do
           ResultList <$> fromFoldable <$> traverse (output t node.selectionSet execCtx) (pure <$> vals)
 
         serialize _ _ _ _ =
@@ -347,8 +345,7 @@ nullableField name t =
     , argumentIntrospections: []
     , typeIntrospection }
       where
-        serialize (AST.FieldNode node) execCtx _ mValue = do
-          value <- mValue
+        serialize (AST.FieldNode node) execCtx _ value = do
           case value of
             Nothing ->
               pure $ ResultNullable Nothing
@@ -379,8 +376,7 @@ nullableListField name t =
     , argumentIntrospections: []
     , typeIntrospection }
       where
-        serialize (AST.FieldNode node) variables _ mVals = do
-          values <- mVals
+        serialize (AST.FieldNode node) variables _ values = do
           case values of
             Nothing ->
               pure $ ResultNullable Nothing
@@ -496,7 +492,7 @@ withField (ObjectType objectConfigFn) fld@(
       makeExecutable :: Field m a argsd argsp -> ExecutableField m a
       makeExecutable (Field { args, serialize: serialize' }) = ExecutableField { execute: execute' }
         where
-          execute' :: m a -> AST.SelectionNode -> ExecutionContext -> m Result
+          execute' :: a -> AST.SelectionNode -> ExecutionContext -> m Result
           execute' val node@(AST.FieldNode { arguments: argumentNodes }) variables =
             case argsFromDefinition argumentNodes variables args of
               Right argumentValues -> serialize' node variables argumentValues val
@@ -607,7 +603,7 @@ withArgument (Field fieldConfig) (Tuple proxy argument) =
         AST.SelectionNode ->
         ExecutionContext ->
         Record argspnew ->
-        m a ->
+        a ->
         m Result
       serialize' node variables argsnew val =
         fieldConfig.serialize node variables (Record.delete proxy argsnew) val
@@ -640,14 +636,14 @@ infixl 7 withArgument as ?>
 withResolver :: forall m a b argsd argsp.
   MonadError Error m =>
   Field m a argsd argsp ->
-  (Record argsp -> m b -> m a) ->
+  (Record argsp -> b -> m a) ->
   Field m b argsd argsp
 withResolver (Field fieldConfig) resolver =
   Field $ fieldConfig { serialize = serialize }
     where
-      serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> m b -> m Result
+      serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> b -> m Result
       serialize node variables args val =
-        fieldConfig.serialize node variables args (resolver args val)
+        (resolver args val) >>= fieldConfig.serialize node variables args
 
 -- | Add a resolver to a field that receives the arguments in a record and the parent value.
 -- |
@@ -664,7 +660,7 @@ infixl 6 withResolver as !>
 withSimpleResolver :: forall m a b.
   MonadError Error m =>
   Field m a () () ->
-  (m b -> m a) ->
+  (b -> m a) ->
   Field m b () ()
 withSimpleResolver fld resolver = withResolver fld (const resolver)
 
@@ -685,7 +681,7 @@ withMappingResolver :: forall m a b.
   Field m a () () ->
   (b -> a) ->
   Field m b () ()
-withMappingResolver fld resolver = withSimpleResolver fld (map resolver)
+withMappingResolver fld resolver = withSimpleResolver fld (resolver >>> pure)
 
 -- | Add a pure resolver to a field that simply maps the parent value.
 -- |
