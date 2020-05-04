@@ -58,5 +58,11 @@ This is a list of features still required to be implemented before v2 can have a
   - [ ] Errors propagate up to nearest nullable field
 - [ ] Interface Types
 - [ ] Union Types
-- [ ] Introspection
+- [ ] Input object types
+- [x] Optional arguments
+- [x] Fragments
+- [ ] Fragment type conditions
+- [ ] Type checks for argument definitions
+      (`($arg: String!)` can only be used in places where `String` is expected)
+- [x] Introspection
 - [x] \_\_typename meta field on object types

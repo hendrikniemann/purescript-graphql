@@ -3,7 +3,8 @@ module Test.GraphQL.Execution where
 import Prelude
 
 import Data.Argonaut.Core (stringify)
-import Data.Either (Either(..))
+import Data.Argonaut.Core as Json
+import Data.Either (Either(..), either)
 import Data.Enum (class Enum)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Bounded (genericBottom, genericTop)
@@ -11,7 +12,7 @@ import Data.Generic.Rep.Enum (genericPred, genericSucc)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Ord (genericCompare)
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.String (trim)
 import Data.Symbol (SProxy(..))
@@ -79,6 +80,9 @@ queryType =
     :> GQL.field "reflect" Scalar.string
       ?> GQL.arg userLevelType (SProxy :: _ "argIn")
       !> (\{ argIn } _ -> pure $ show argIn)
+    :> GQL.field "reflectStringOptional" Scalar.string
+      ?> GQL.optionalArg Scalar.string (SProxy :: _ "argIn")
+      !> (\{ argIn } _ -> pure $ fromMaybe "default" argIn)
     :> GQL.field "toggle" Scalar.boolean
       ?> GQL.arg Scalar.boolean (SProxy :: _ "on")
       !> (\{ on: onArg } _ -> pure $ not onArg)
@@ -113,6 +117,8 @@ testQuery query expected =
 
   Left message -> fail $ show message
 
+affFromEither :: Either Error ~> Aff
+affFromEither = either throwError pure
 
 executionSpec :: Spec Unit
 executionSpec =
@@ -190,3 +196,21 @@ executionSpec =
       testQuery
         """{ nested { __typename } }"""
         """{"data":{"nested":{"__typename":"User"}}}"""
+
+    it "Wraps optional parameters in maybe" do
+      testQuery
+        """{ reflectStringOptional }"""
+        """{"data":{"reflectStringOptional":"default"}}"""
+      testQuery
+        """{ reflectStringOptional(argIn: "Hello World") }"""
+        """{"data":{"reflectStringOptional":"Hello World"}}"""
+
+    it "Accepts null as a value for an optional parameter" $
+      testQuery
+        """{ reflectStringOptional(argIn: null) }"""
+        """{"data":{"reflectStringOptional":"default"}}"""
+
+    it "Accepts null as a variable value for an optional parameter" $ affFromEither do
+      let query = "query ($arg: String) { reflectStringOptional(argIn: $arg) }"
+      res <- graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing (pure "")
+      stringify res `shouldEqual` """{"data":{"reflectStringOptional":"default"}}"""

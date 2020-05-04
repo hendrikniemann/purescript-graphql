@@ -411,6 +411,37 @@ arg t name =
         , typeIntrospection: \_ -> introspect t
         }
 
+
+optionalArg ::
+  forall t a n.
+  InputType t =>
+  IsSymbol n =>
+  t a ->
+  SProxy n ->
+  Tuple (SProxy n) (Argument (Maybe a))
+optionalArg t name =
+    Tuple (SProxy :: _ n) $
+      Argument
+        { description: Nothing
+        , resolveValue
+        , typeIntrospection: \_ -> introspect t
+        }
+    where
+      -- I am not really happy with this function and it is a bit of a hack:
+      -- We are basically proxying the input function and prevent it from failing if null is
+      -- supplied as the variable value. It is easy to remove the Nothing case from the literal
+      -- case but hard to remove the JSON null from the possible JSON values. I think this is the
+      -- right place to implement this logic but I don't know how to remove this case completely
+      -- from the input function.
+      resolveValue Nothing execCtx = Right Nothing
+      resolveValue (Just AST.NullValueNode) execCtx = Right Nothing
+      resolveValue a@(Just (AST.VariableNode { name: AST.NameNode n})) execCtx = do
+        variableValue <- note ("Unknown variable \"" <> n.value <> "\".") $
+          lookup n.value execCtx.variables
+        if Json.isNull variableValue then pure Nothing else Just <$> input t a execCtx
+      resolveValue a execCtx = Just <$> input t a execCtx
+
+
 -- * Combinator operators
 
 -- | The describe type class is used to allow adding descriptions to various parts of a GraphQL
@@ -642,8 +673,7 @@ withResolver (Field fieldConfig) resolver =
   Field $ fieldConfig { serialize = serialize }
     where
       serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> b -> m Result
-      serialize node variables args val =
-        (resolver args val) >>= fieldConfig.serialize node variables args
+      serialize node variables args = resolver args >=> fieldConfig.serialize node variables args
 
 -- | Add a resolver to a field that receives the arguments in a record and the parent value.
 -- |
