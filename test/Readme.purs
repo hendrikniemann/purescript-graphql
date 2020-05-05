@@ -2,14 +2,12 @@ module Main where
 
 import Prelude
 
-import Control.Monad.Error.Class (throwError)
 import Data.Argonaut.Core (stringify)
-import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
+import Effect.Class (liftEffect)
 import Effect.Console as Console
-import Effect.Exception (Error)
 import GraphQL (graphql)
 import GraphQL.Type ((!>), (.>), (:>))
 import GraphQL.Type as GraphQL
@@ -18,15 +16,15 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
 main :: Effect Unit
-main = case graphql schema "{ hello }" Map.empty Nothing (pure unit) of
-  Left error -> Console.error $ show error
-  Right result -> Console.log $ stringify result
+main = do
+  result <- graphql schema "{ hello }" Map.empty Nothing (pure unit)
+  Console.log $ stringify result
 -- {"data":{"hello":"world"}}
 
-schema :: GraphQL.Schema (Either Error) Unit
+schema :: GraphQL.Schema Effect Unit
 schema = GraphQL.Schema { query: queryType, mutation: Nothing }
 
-queryType :: GraphQL.ObjectType (Either Error) Unit
+queryType :: GraphQL.ObjectType Effect Unit
 queryType =
   GraphQL.objectType "Query"
     .> "The root query type."
@@ -38,7 +36,6 @@ queryType =
 readmeSpec :: Spec Unit
 readmeSpec =
   describe "Readme" $
-    it "should execute the given query" $
-        case graphql schema "{ hello }" Map.empty Nothing (pure unit) of
-          Left error -> throwError error
-          Right result -> stringify result `shouldEqual` """{"data":{"hello":"world"}}"""
+    it "should execute the given query" $ liftEffect do
+      result <- graphql schema "{ hello }" Map.empty Nothing (pure unit)
+      stringify result `shouldEqual` """{"data":{"hello":"world"}}"""

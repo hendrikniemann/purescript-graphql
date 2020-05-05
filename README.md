@@ -20,26 +20,23 @@ module Main where
 import Prelude
 
 import Data.Argonaut.Core (stringify)
-import Data.Either (Either(..))
 import Data.Map as Map
 import Effect (Effect)
 import Effect.Console as Console
-import Effect.Exception (Error)
 import GraphQL (graphql)
 import GraphQL.Type ((!>), (.>), (:>))
 import GraphQL.Type as GraphQL
 import GraphQL.Type.Scalar as Scalar
 
 main :: Effect Unit
-main = case graphql schema "{ hello }" Map.empty Nothing (pure unit) of
-  Left error -> Console.error $ show error
-  Right result -> Console.log $ stringify result
--- {"data":{"hello":"world"}}
+main = do
+  result <- graphql schema "{ hello }" Map.empty Nothing (pure unit)
+  Console.log $ stringify result -- {"data":{"hello":"world"}}
 
-schema :: GraphQL.Schema (Either Error) Unit
+schema :: GraphQL.Schema Effect Unit
 schema = GraphQL.Schema { query: queryType, mutation: Nothing }
 
-queryType :: GraphQL.ObjectType (Either Error) Unit
+queryType :: GraphQL.ObjectType Effect Unit
 queryType =
   GraphQL.objectType "Query"
     .> "The root query type."
