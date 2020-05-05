@@ -1,99 +1,126 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>purescript-graphql-example - Example purescript graphql app</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="description" content="Example purescript graphql app" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
+    />
+    <link
+      rel="stylesheet"
+      href="//cdn.jsdelivr.net/npm/docsify-top-banner-plugin@latest/dist/style.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/docsify/lib/themes/vue.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/tonsky/FiraCode@1.206/distr/fira_code.css"
+    />
+    <style>
+      .constant {
+        color: #00869c;
+      }
 
-<head>
-  <meta charset="UTF-8">
-  <title>purescript-graphql-example - Example purescript graphql app</title>
-  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
-  <meta name="description" content="Example purescript graphql app">
-  <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-  <link rel="stylesheet" href="//unpkg.com/docsify/lib/themes/vue.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/tonsky/FiraCode@1.206/distr/fira_code.css">
-  <style>
-    .constant {
-      color: #00869C;
-    }
+      code {
+        font-family: Fira Code, Roboto Mono, Monaco, courier, monospace !important;
+      }
 
-    code {
-      font-family: Fira Code, Roboto Mono, Monaco, courier, monospace !important;
-    }
-  </style>
-</head>
+      #TOPBANNER {
+        padding: 0.4rem;
+        padding-left: 300px;
+      }
+      @media screen and (max-width: 768px) {
+        #TOPBANNER {
+          padding-left: 0.4rem;
+        }
+      }
+    </style>
+  </head>
 
-<body>
-  <div id="app"></div>
-  <script>
-    window.$docsify = {
-      name: 'PureScript GraphQL',
-      repo: 'https://github.com/hendrikniemann/purescript-graphql',
-      loadSidebar: true
-    }
-  </script>
-  <script src="//unpkg.com/docsify/lib/docsify.min.js"></script>
-  <script>
-    Prism.languages.purescript = {
-      comment: /--.*|{-[\s\S]*?-}/,
-      char: {
-        pattern: /'(?:[^\\'\r\n]|\\(?:[abfnrtv\\']|\d+|x[0-9a-fA-F]+))'/,
-        greedy: true
-      },
-      string: [
-        {
-          pattern: /"""[\s\S]*?"""/,
-          greedy: true
+  <body>
+    <div id="app"></div>
+    <script>
+      window.$docsify = {
+        name: "PureScript GraphQL",
+        repo: "https://github.com/hendrikniemann/purescript-graphql",
+        loadSidebar: true,
+        topBanner: {
+          content: "Looking for v1 docs? [Legacy Documentation](/v1/)",
+          position: "relative",
+          zIndex: -1,
         },
-        {
-          pattern: /"(?:[^\\"\r\n]|\\(?:[abfnrtv\\"]|\d+|x[0-9a-fA-F]+))*"/,
-          greedy: true
-        }
-      ],
-      import_statement: {
-        pattern: /^\s*import\s+[A-Z]\w*(?:\.[A-Z]\w*)*(?:\s+as\s+([A-Z]\w*)(?:\.[A-Z]\w*)*)?(?:\s+exposing\s+)?/m,
-        inside: {
-          keyword: /\b(?:import|as)\b/
-        }
-      },
-      module_definition: {
-        pattern: /^\s*module\s+[A-Z]\w*(?:\.[A-Z]\w*)*\s+(?:\(\s*\w+\s*(?:\s*,\s*\w+)*\))?\s+where/m,
-        inside: {
-          keyword: /\b(?:module|where)\b/
-        }
-      },
-      keyword: /\b(?:case|else|if|in|infixl|infixr|let|of|then|type|newtype|data|where|class|instance|kind|forall)\b/,
-      number: /\b(?:\d+(?:\.\d+)?(?:e[+-]?\d+)?)\b/i,
-      operator: /[+\-/*=.$<>:&|^?%#@~!]{2,}|[+\-/*=$<>:&|^?%#@~!]/,
-      hvariable: /\b(?:[A-Z]\w*\.)*[a-z]\w*\b/,
-      constant: /\b(?:[A-Z]\w*\.)*[A-Z]\w*\b/,
-      punctuation: /[{}[\]|(),.:]/
-    };
-
-    Prism.languages.graphql = {
-      'comment': /#.*/,
-      'string': {
-        pattern: /"(?:\\.|[^\\"\r\n])*"/,
-        greedy: true
-      },
-      'number': /(?:\B-|\b)\d+(?:\.\d+)?(?:e[+-]?\d+)?\b/i,
-      'boolean': /\b(?:true|false)\b/,
-      'variable': /\$[a-z_]\w*/i,
-      'directive': {
-        pattern: /@[a-z_]\w*/i,
-        alias: 'function'
-      },
-      'attr-name': /[a-z_]\w*(?=\s*:)/i,
-      'keyword': [
-        {
-          pattern: /(fragment\s+(?!on)[a-z_]\w*\s+|\.{3}\s*)on\b/,
-          lookbehind: true
+      };
+    </script>
+    <script src="https://unpkg.com/docsify/lib/docsify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docsify-top-banner-plugin@latest/dist/index.js"></script>
+    <script>
+      Prism.languages.purescript = {
+        comment: /--.*|{-[\s\S]*?-}/,
+        char: {
+          pattern: /'(?:[^\\'\r\n]|\\(?:[abfnrtv\\']|\d+|x[0-9a-fA-F]+))'/,
+          greedy: true,
         },
-        /\b(?:query|fragment|mutation|type|enum|schema)\b/
-      ],
-      'operator': /!|=|\.{3}/,
-      'punctuation': /[!(){}\[\]:=,]/,
-      'constant': /ID|String|Int|Float|Boolean/,
-    };
-  </script>
-  <script src="//unpkg.com/prismjs/components/prism-json.min.js"></script>
-</body>
+        string: [
+          {
+            pattern: /"""[\s\S]*?"""/,
+            greedy: true,
+          },
+          {
+            pattern: /"(?:[^\\"\r\n]|\\(?:[abfnrtv\\"]|\d+|x[0-9a-fA-F]+))*"/,
+            greedy: true,
+          },
+        ],
+        import_statement: {
+          pattern: /^\s*import\s+[A-Z]\w*(?:\.[A-Z]\w*)*(?:\s+as\s+([A-Z]\w*)(?:\.[A-Z]\w*)*)?(?:\s+exposing\s+)?/m,
+          inside: {
+            keyword: /\b(?:import|as)\b/,
+          },
+        },
+        module_definition: {
+          pattern: /^\s*module\s+[A-Z]\w*(?:\.[A-Z]\w*)*\s+(?:\(\s*\w+\s*(?:\s*,\s*\w+)*\))?\s+where/m,
+          inside: {
+            keyword: /\b(?:module|where)\b/,
+          },
+        },
+        keyword: /\b(?:case|else|if|in|infixl|infixr|let|of|then|type|newtype|data|where|class|instance|kind|forall)\b/,
+        number: /\b(?:\d+(?:\.\d+)?(?:e[+-]?\d+)?)\b/i,
+        operator: /[+\-/*=.$<>:&|^?%#@~!]{2,}|[+\-/*=$<>:&|^?%#@~!]/,
+        hvariable: /\b(?:[A-Z]\w*\.)*[a-z]\w*\b/,
+        constant: /\b(?:[A-Z]\w*\.)*[A-Z]\w*\b/,
+        punctuation: /[{}[\]|(),.:]/,
+      };
 
+      Prism.languages.graphql = {
+        comment: /#.*/,
+        string: {
+          pattern: /"(?:\\.|[^\\"\r\n])*"/,
+          greedy: true,
+        },
+        number: /(?:\B-|\b)\d+(?:\.\d+)?(?:e[+-]?\d+)?\b/i,
+        boolean: /\b(?:true|false)\b/,
+        variable: /\$[a-z_]\w*/i,
+        directive: {
+          pattern: /@[a-z_]\w*/i,
+          alias: "function",
+        },
+        "attr-name": /[a-z_]\w*(?=\s*:)/i,
+        keyword: [
+          {
+            pattern: /(fragment\s+(?!on)[a-z_]\w*\s+|\.{3}\s*)on\b/,
+            lookbehind: true,
+          },
+          /\b(?:query|fragment|mutation|type|enum|schema)\b/,
+        ],
+        operator: /!|=|\.{3}/,
+        punctuation: /[!(){}\[\]:=,]/,
+        constant: /ID|String|Int|Float|Boolean/,
+      };
+    </script>
+    <script src="//unpkg.com/prismjs/components/prism-json.min.js"></script>
+  </body>
 </html>
