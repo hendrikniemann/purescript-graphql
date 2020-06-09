@@ -32,7 +32,8 @@ _\* Maybe not quite no runtime errors as in zero runtime errors, but - you know 
 
 This tutorial assumes that you are already familiar with some PureScript and the basics of GraphQL.
 You can learn the basics of GraphQL on the offical [GraphQL website](http://graphql.org).
-I hate to make use of the M word here but monads are in the center of effectful code in PureScript and obviously this library.
+For this tutorial you will need to have some practical understanding of monads.
+Monads are in the center of effectful code in PureScript and obviously this library.
 You should understand how to work with effect monads like `Effect`, `Aff` or `IO` if you come from Haskell.
 
 For this tutorial we will be using PureScript 0.13 and Spago.
