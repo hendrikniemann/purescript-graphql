@@ -4,8 +4,7 @@ You can edit this file as you like.
 -}
 { name = "purescript-graphql"
 , dependencies =
-  [ "argonaut-codecs"
-  , "argonaut-core"
+  [ "argonaut"
   , "console"
   , "control"
   , "effect"

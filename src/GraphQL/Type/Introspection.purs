@@ -76,7 +76,7 @@ schemaType = schemaType'
       :> GQL.nullableListField "enumValues" enumValueType
         !#> unwrap >>> _.enumValues
       :> GQL.nullableListField "inputFields" (defer \_ -> inputValueType)
-        !#> const (Nothing :: Maybe (Array InputValueIntrospection))
+        !#> unwrap >>> _.inputs
       :> GQL.nullableField "ofType" (defer \_ -> typeType)
         !#> unwrap >>> _.ofType >>> map applyUnit
 

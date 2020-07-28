@@ -26,6 +26,7 @@ newtype TypeIntrospection = TypeIntrospection
   , description :: Maybe String
   , fields :: Maybe (Array FieldIntrospection)
   , enumValues :: Maybe (Array EnumValueIntrospection)
+  , inputs :: Maybe (Array InputValueIntrospection)
   , ofType :: Maybe (Unit -> TypeIntrospection)
   }
 

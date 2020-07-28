@@ -4,7 +4,7 @@ import Prelude
 
 import Control.Lazy (class Lazy)
 import Control.Monad.Error.Class (class MonadError, catchError, throwError)
-import Data.Argonaut.Core as Json
+import Data.Argonaut as Json
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
@@ -20,6 +20,7 @@ import Effect.Exception (Error, error, message)
 import GraphQL.Execution.Result (Result(..))
 import GraphQL.Language.AST as AST
 import GraphQL.Type.Introspection.Datatypes as IntrospectionTypes
+import Prim.Row (class Lacks, class Cons)
 import Record as Record
 import Type.Data.RowList (RLProxy(..))
 import Type.Row as Row
@@ -72,6 +73,7 @@ instance graphqlTypeScalarType :: GraphQLType ScalarType where
       , name: Just name
       , description
       , fields: Nothing
+      , inputs: Nothing
       , enumValues: Nothing
       , ofType: Nothing
       }
@@ -203,6 +205,7 @@ instance graphqlTypeEnumType :: GraphQLType EnumType where
       , name: Just name
       , description
       , fields: Nothing
+      , inputs: Nothing
       , enumValues: pure $ values <#> \(EnumValue val) ->
           IntrospectionTypes.EnumValueIntrospection
             { name: val.name
@@ -245,6 +248,60 @@ instance outputTypeEnumType :: MonadError Error m => OutputType m EnumType where
 
   output _ _ _ _ = pure $ ResultError "Invalid subselection on enum type!"
 
+newtype InputObjectType a = InputObjectType (Unit ->
+  { name :: String
+  , description :: Maybe String
+  , fieldIntrospection :: Array IntrospectionTypes.InputValueIntrospection
+  , input :: Maybe AST.ValueNode -> ExecutionContext -> Either String a
+  }
+)
+
+instance graphqlTypeInputObjectType :: GraphQLType InputObjectType where
+  introspect (InputObjectType config) =
+    IntrospectionTypes.TypeIntrospection
+      { kind: IntrospectionTypes.InputObject
+      , name: Just (config unit).name
+      , description: (config unit).description
+      , fields: Nothing
+      , inputs: Just $ (config unit).fieldIntrospection
+      , enumValues: Nothing
+      , ofType: Nothing
+      }
+
+instance inputTypeInputObjectType :: InputType InputObjectType where
+  input (InputObjectType config) = (config unit).input
+
+derive instance newtypeInputObjectType :: Newtype (InputObjectType a) _
+
+instance lazyInputObjectType :: Lazy (InputObjectType a) where
+  defer fn = InputObjectType $ \_ -> unwrap (fn unit) unit
+
+inputObjectType :: String -> InputObjectType {}
+inputObjectType name = InputObjectType \_ ->
+  { name
+  , description: Nothing
+  , fieldIntrospection: []
+  , input: \_ _ -> Right {}
+  }
+
+newtype InputField l a = InputField
+  { name :: SProxy l
+  , introspection :: IntrospectionTypes.InputValueIntrospection
+  , input :: Maybe AST.ValueNode -> ExecutionContext -> Either String a
+  }
+
+inputField :: forall t l a. IsSymbol l => InputType t => t a -> SProxy l -> InputField l a
+inputField inputType label = InputField
+  { name: label
+  , introspection:
+      IntrospectionTypes.InputValueIntrospection
+        { name: reflectSymbol label
+        , description: Nothing
+        , defaultValue: Nothing
+        , type: \_ -> introspect inputType
+        }
+  , input: input inputType }
+
 -- | Creates an empty object type with the given name. Fields can be added to the object type using
 -- | the `:>` operator from this module.
 objectType :: forall m a. String -> ObjectType m a
@@ -255,6 +312,7 @@ objectType name =
       , name: Just name
       , description: Nothing
       , fields: Just []
+      , inputs: Nothing
       , enumValues: Nothing
       , ofType: Nothing
       }
@@ -282,6 +340,7 @@ field name t =
             , name: Nothing
             , description: Nothing
             , fields: Nothing
+            , inputs: Nothing
             , enumValues: Nothing
             , ofType: Just $ \_ -> introspect t
             }
@@ -317,6 +376,7 @@ listField name t =
             , description: Nothing
             , fields: Nothing
             , enumValues: Nothing
+            , inputs: Nothing
             , ofType: Just $ \_ ->
                 IntrospectionTypes.TypeIntrospection
                   { kind: IntrospectionTypes.List
@@ -324,6 +384,7 @@ listField name t =
                   , description: Nothing
                   , fields: Nothing
                   , enumValues: Nothing
+                  , inputs: Nothing
                   , ofType: Just $ \_ -> introspect t
                   }
             }
@@ -396,6 +457,7 @@ nullableListField name t =
             , name: Nothing
             , description: Nothing
             , fields: Nothing
+            , inputs: Nothing
             , enumValues: Nothing
             , ofType: Just $ \_ -> introspect t
             }
@@ -484,9 +546,20 @@ instance describeEnumType :: Describe (EnumType a) where
 instance describeEnumValue :: Describe (EnumValue a) where
   describe (EnumValue config) s = EnumValue ( config { description = Just s })
 
+instance describeInputObjectType :: Describe (InputObjectType a) where
+  describe (InputObjectType configFn) s =
+    InputObjectType $ \_ -> (configFn unit) { description = Just s }
+
+instance describeInputField :: Describe (InputField s a) where
+  describe (InputField config) s =
+    InputField $ config { introspection = i }
+      where
+        { introspection: (IntrospectionTypes.InputValueIntrospection introspection)} = config
+        i = IntrospectionTypes.InputValueIntrospection $ introspection { description = Just s }
+
 -- | The `withField` function is used to add fields to an object type.
 -- |
--- | When added to an object type the information about the field's argument are hidden in the
+-- | When added to an object type the information about the field's arguments are hidden in the
 -- | closure by being converted to the `ExecutableField` type.
 withField :: forall m a argsd argsp.
   ArgsDefToArgsParam argsd argsp =>
@@ -596,7 +669,7 @@ instance argsFromRowsCons ::
           -- Extract the argument value if the node can be found. If not use null value
           -- TODO: Implement default values where we would try to use the default value first
           valueNode = map (\(AST.ArgumentNode { value }) -> value) argumentNode
-          improveInputError err = "Error when reading variable '" <> reflectSymbol key <> "': " <> err
+          improveInputError err = "Error when reading argument '" <> reflectSymbol key <> "': " <> err
           resolvedValue = lmap improveInputError $ argConfig.resolveValue valueNode variables
           tail =
             argsFromRows
@@ -722,6 +795,63 @@ withMappingResolver fld resolver = withSimpleResolver fld (resolver >>> pure)
 -- |     !#> _.id
 -- | ```
 infixl 6 withMappingResolver as !#>
+
+-- | Add a field to an input object type.
+-- | Usually this functions operator alias
+withInputField :: forall l a r1 r2.
+  IsSymbol l
+  => Lacks l r1
+  => Cons l a r1 r2
+  => InputObjectType { | r1 }
+  -> InputField l a
+  -> InputObjectType { | r2 }
+withInputField (InputObjectType objConfig) (InputField inputConfig) =InputObjectType (\_ ->
+    let
+      config = (objConfig unit)
+      fieldLabel = (SProxy :: SProxy l)
+      fieldName = reflectSymbol fieldLabel
+
+      input :: Maybe AST.ValueNode -> ExecutionContext -> Either String (Record r2)
+      input variableNode execCtx = do
+        let readField = Json.caseJsonObject (Right Nothing) (flip Json.getFieldOptional' fieldName)
+        recValue <- config.input variableNode execCtx
+        case variableNode of
+          (Just (AST.VariableNode { name: AST.NameNode n })) ->
+            case lookup n.value execCtx.variables of
+              Just json -> do
+                maybeValue <- readField json
+                let hackedVariables = insert "variable_hack" (fromMaybe Json.jsonNull maybeValue) empty
+                let hackedCtx = { fragments: execCtx.fragments, variables: hackedVariables }
+                fieldValue <-
+                  inputConfig.input
+                    (Just (AST.VariableNode { name: (AST.NameNode { value: "variable_hack" }) }))
+                    hackedCtx
+                pure $ Record.insert fieldLabel fieldValue recValue
+              Nothing -> Left ("Unknown variable \"" <> n.value <> "\".")
+
+          (Just (AST.ObjectValueNode { fields })) ->
+            case find (\(AST.ObjectFieldNode { name: AST.NameNode n }) -> n.value == fieldName) fields of
+              Just (AST.ObjectFieldNode { value }) -> do
+                fieldValue <- inputConfig.input (Just value) execCtx
+                pure $ Record.insert fieldLabel fieldValue recValue
+              Nothing -> Left ("Field '" <> fieldName <> "' is required in object type.")
+
+          _ -> Left "Must provide value for required input object value."
+
+      fieldIntrospection = Array.cons inputConfig.introspection config.fieldIntrospection
+
+    in config { input = input, fieldIntrospection = fieldIntrospection }
+  )
+
+-- | Add a field to an input object type.
+-- |
+-- | *Example:*
+-- | ```purescript
+-- | inputObjectType "User"
+-- |   :?> inputField "name" Scalar.string
+-- |     .> "The name of the user"
+-- | ```
+infixl 6 withInputField as :?>
 
 -- | Take a bounded enum and infer an enum type from that value using it's show instance to
 -- | represent the enum string. The show function cannot return values that are not valid GraphQL
