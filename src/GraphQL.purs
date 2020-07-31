@@ -23,6 +23,8 @@ import GraphQL.Type (Schema)
 -- | - *variables*: a map of variables with their corresponding JSON values
 -- | - *operation*: an optional operation name - can be omitted if query contains only one operation
 -- | - *root*: a root value to be passed to the query and mutation resolvers
+-- |
+-- | @see https://spec.graphql.org/June2018/#sec-Execution
 graphql ::
   ∀ m a.
   MonadError Error m =>

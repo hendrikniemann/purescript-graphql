@@ -12,7 +12,7 @@ To follow the roadmap to version 2 check out the [milestone](https://github.com/
 
 ## Getting started
 
-If you are new to PureScript GraphQL I highly recommend to follow the [tutorial](https://hendrikniemann.github.io/purescript-graphql/). ~If you know what you are doing you can install `purescript-graphql` with spago~
+If you are new to PureScript GraphQL I highly recommend to follow the [tutorial](https://hendrikniemann.github.io/purescript-graphql/). ~~If you know what you are doing you can simply install `purescript-graphql` with spago.~~ (Not in the package set yet, will be done as soon as beta is out)
 
 ```
 spago install graphql

@@ -42,8 +42,7 @@ Adopt the `additions` variable in the `packages.dhall` file to install from the 
 let additions =
       { graphql =
         { dependencies =
-          [ "argonaut-codecs"
-          , "argonaut-core"
+          [ "argonaut"
           , "console"
           , "control"
           , "effect"
@@ -66,7 +65,7 @@ let additions =
 To install all the purescript dependencies you can simply go ahead and run this command in your project directory.
 
 ```
-spago install graphql argonaut-core argonaut-codecs maybe either ordered-collections
+spago install graphql argonaut maybe either ordered-collections
 ```
 
 ## Building the first schema
@@ -150,7 +149,7 @@ queryType = GQL.withField (GQL.objectType "Query") helloField
 ```
 
 Now, admittedly it is not the prettiest code to look at.
-GraphQL APIs often consist of hundreds of types an thousands of fields.
+GraphQL APIs often consist of hundreds of types and thousands of fields.
 Using the operators `:>` for `withField` and `!>` for `withResolver` we can shorten our code drastically and make inlining of the field more readable.
 
 ```purescript
@@ -174,7 +173,7 @@ import Data.Map as Map
 import GraphQL (graphql)
 ```
 
-We can now execute GraphQL queries using this function!
+We can now execute the example query using this function.
 
 ```purescript
 graphql schema "{ hello }" Map.empty Nothing (pure unit)

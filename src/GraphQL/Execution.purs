@@ -18,7 +18,11 @@ import GraphQL.Type.Introspection.Datatypes (SchemaIntrospection(..))
 simpleError :: forall m. Applicative m => String -> m Json
 simpleError e = pure $ "error" := e ~> jsonEmptyObject
 
-
+-- | This function is mostly used internally. If you just want to execute a GraphQL query you should
+-- | probably use `graphql` from the `GraphQL` module.
+-- |
+-- | This function executes GraphQL requests and roughly implements the logic outlined here:
+-- | https://spec.graphql.org/June2018/#sec-Executing-Requests
 execute :: forall m a.
   MonadError Error m =>
   DocumentNode ->
@@ -62,6 +66,7 @@ execute (DocumentNode { definitions }) (Schema s) variables operation root = do
         (\mutation -> output mutation (Just selectionSet) variables root)
         s.mutation
 
+    -- Support for subscriptions would go here in the future.
     _ -> throwError $ error "Unrecognised operation."
 
   pure $ serializeResult executionResult

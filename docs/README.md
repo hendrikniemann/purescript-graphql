@@ -75,7 +75,8 @@ To make the most out of this tutorial I would highly recommend to type the code 
 This tutorial attempts to provide small enough bits to make you follow along.
 You can find a running version of this tutorial's codebase in the [PureScript GraphQL example repository](https://github.com/hendrikniemann/purescript-graphql-example).
 
-When you get stuck, set yourself a time to try and resolve the problem on your own.
+When you get stuck, set yourself a time frame to try and resolve the problem on your own.
 If your are not able to solve the problem without help I would recommend the [functional programming Slack community](https://fpchat-invite.herokuapp.com/).
 The PureScript community is very active and beginner friendly.
 The _purescript-beginner_ slack channel is the best place to get quick help.
+You can also reach out directly to me on this slack using my handle _hendrikniemann_.
