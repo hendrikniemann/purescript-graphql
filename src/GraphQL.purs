@@ -32,7 +32,7 @@ graphql ::
   String ->
   Map String Json ->
   Maybe String ->
-  m a ->
+  a ->
   m Json
 graphql schema query variables operation root =
   case parse query of
@@ -43,4 +43,4 @@ graphql schema query variables operation root =
         f@(AST.FragmentDefinitionNode { name: AST.NameNode n }) -> pure $ Tuple n.value f
         _ -> Nothing
     in
-      execute document schema { variables, fragments } operation root
+      execute document schema { variables, fragments } operation (pure root)

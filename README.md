@@ -40,8 +40,8 @@ import GraphQL.Type.Scalar as Scalar
 
 main :: Effect Unit
 main = do
-  result <- graphql schema "{ hello(name: \"world\") }" Map.empty Nothing (pure unit)
-  Console.log $ stringify result -- {"data":{"hello":"Hello, world!"}}
+  result <- graphql schema """{ hello(name: "world") }""" Map.empty Nothing unit
+  Console.log $ stringify result -- {"data":{"hello":"world"}}
 
 schema :: GraphQL.Schema Effect Unit
 schema = GraphQL.Schema { query: queryType, mutation: Nothing }

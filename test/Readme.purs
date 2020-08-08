@@ -1,4 +1,4 @@
-module Main where
+module Test.Readme where
 
 import Prelude
 
@@ -18,9 +18,8 @@ import Test.Spec.Assertions (shouldEqual)
 
 main :: Effect Unit
 main = do
-  result <- graphql schema "{ hello }" Map.empty Nothing (pure unit)
-  Console.log $ stringify result
--- {"data":{"hello":"world"}}
+  result <- graphql schema """{ hello(name: "world") }""" Map.empty Nothing unit
+  Console.log $ stringify result -- {"data":{"hello":"world"}}
 
 schema :: GraphQL.Schema Effect Unit
 schema = GraphQL.Schema { query: queryType, mutation: Nothing }
@@ -39,5 +38,5 @@ readmeSpec :: Spec Unit
 readmeSpec =
   describe "Readme" $
     it "should execute the given query" $ liftEffect do
-      result <- graphql schema """{ hello(name: "Stranger") }""" Map.empty Nothing (pure unit)
+      result <- graphql schema """{ hello(name: "Stranger") }""" Map.empty Nothing unit
       stringify result `shouldEqual` """{"data":{"hello":"Hello, Stranger!"}}"""
