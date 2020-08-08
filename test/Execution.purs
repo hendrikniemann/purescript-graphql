@@ -112,7 +112,7 @@ userLevelType =
 
 testQuery :: String -> String -> Aff Unit
 testQuery query expected =
-  case graphql testSchema query Map.empty Nothing (pure "Hendrik") of
+  case graphql testSchema query Map.empty Nothing "Hendrik" of
   Right res -> stringify res `shouldEqual` expected
 
   Left message -> fail $ show message
@@ -212,5 +212,5 @@ executionSpec =
 
     it "Accepts null as a variable value for an optional parameter" $ affFromEither do
       let query = "query ($arg: String) { reflectStringOptional(argIn: $arg) }"
-      res <- graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing (pure "")
+      res <- graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing ""
       stringify res `shouldEqual` """{"data":{"reflectStringOptional":"default"}}"""
