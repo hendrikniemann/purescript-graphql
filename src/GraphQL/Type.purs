@@ -276,34 +276,23 @@ derive instance newtypeInputObjectType :: Newtype (InputObjectType a) _
 instance lazyInputObjectType :: Lazy (InputObjectType a) where
   defer fn = InputObjectType $ \_ -> unwrap (fn unit) unit
 
-inputObjectType :: String -> InputObjectType {}
-inputObjectType name = InputObjectType \_ ->
-  { name
-  , description: Nothing
-  , fieldIntrospection: []
-  , input: \_ _ -> Right {}
-  }
-
 newtype InputField l a = InputField
   { name :: SProxy l
   , introspection :: IntrospectionTypes.InputValueIntrospection
   , input :: Maybe AST.ValueNode -> ExecutionContext -> Either String a
   }
 
-inputField :: forall t l a. IsSymbol l => InputType t => t a -> SProxy l -> InputField l a
-inputField inputType label = InputField
-  { name: label
-  , introspection:
-      IntrospectionTypes.InputValueIntrospection
-        { name: reflectSymbol label
-        , description: Nothing
-        , defaultValue: Nothing
-        , type: \_ -> introspect inputType
-        }
-  , input: input inputType }
+-- * DSL Creator functions
 
 -- | Creates an empty object type with the given name. Fields can be added to the object type using
--- | the `:>` operator from this module.
+-- | the `:>` operator from this module and the `field` functions. Object types should have at least
+-- | one field to confirm to the GraphQL specification.
+-- |
+-- | *Example:*
+-- | ```purescript
+-- | queryType :: ObjectType Unit
+-- | queryType = objectType "Query"
+-- | ```
 objectType :: forall m a. String -> ObjectType m a
 objectType name =
   let
@@ -345,7 +334,7 @@ field name t =
             , ofType: Just $ \_ -> introspect t
             }
 
--- | Create a new field for an object type that is a list. You can return any `Foldable` in the
+-- | Create a new field for an object type that is a list. You can return any `Traversable` from the
 -- | resolver.
 listField :: forall m f t a.
   MonadError Error m =>
@@ -462,8 +451,19 @@ nullableListField name t =
             , ofType: Just $ \_ -> introspect t
             }
 
--- | Create a tuple with a given name and a plain argument of the given type.
+-- | Create a tuple with a given name and a plain argument of the given type. Arguments are passed
+-- | into the resolver. Arguments created with this function are required and the query fails if
+-- | no value or a `null` value is supplied for this argument. To make an argument optional use
+-- | `optionalArg` instead.
 -- | The name argument tuple can then be used to be added to a field using the `?>` operator.
+-- |
+-- | *Example:*
+-- | ```purescript
+-- | objectType "Query"
+-- |   :> field "hello" Scalar.string
+-- |     ?> arg Scalar.string (SProxy :: _ "name")
+-- |     !> \{ name } parent -> pure $ "Hello " <> name
+-- | ```
 arg :: forall t a n. InputType t => IsSymbol n => t a -> SProxy n -> Tuple (SProxy n) (Argument a)
 arg t name =
     Tuple (SProxy :: _ n) $
@@ -473,7 +473,22 @@ arg t name =
         , typeIntrospection: \_ -> introspect t
         }
 
-
+-- | Create a tuple with a given name and a plain argument of the given type, that is optional.
+-- | If the argument is supplied for the field the value is available in the arguments wrapped in
+-- | `Just`. If the argument is not supplied or the supplied value is `null` the arguments field
+-- | in the resolver is set to `Nothing`.
+-- | The name argument tuple can then be used to be added to a field using the `?>` operator.
+-- |
+-- | *Example:*
+-- | ```purescript
+-- | objectType "Query"
+-- |   :> field "hello" Scalar.string
+-- |     ?> optionalArg Scalar.string (SProxy :: _ "name")
+-- |     !> (\{ name } parent -> case name of
+-- |          Just n -> pure $ "Hello " <> name
+-- |          Nothing -> pure "Hello stranger"
+-- |     )
+-- | ```
 optionalArg ::
   forall t a n.
   InputType t =>
@@ -504,7 +519,28 @@ optionalArg t name =
       resolveValue a execCtx = Just <$> input t a execCtx
 
 
--- * Combinator operators
+
+inputObjectType :: String -> InputObjectType {}
+inputObjectType name = InputObjectType \_ ->
+  { name
+  , description: Nothing
+  , fieldIntrospection: []
+  , input: \_ _ -> Right {}
+  }
+
+inputField :: forall t l a. IsSymbol l => InputType t => t a -> SProxy l -> InputField l a
+inputField inputType label = InputField
+  { name: label
+  , introspection:
+      IntrospectionTypes.InputValueIntrospection
+        { name: reflectSymbol label
+        , description: Nothing
+        , defaultValue: Nothing
+        , type: \_ -> introspect inputType
+        }
+  , input: input inputType }
+
+-- * DSL Combinator operators
 
 -- | The describe type class is used to allow adding descriptions to various parts of a GraphQL
 -- | schema that can have a description. The `.>` operator can be used with the GraphQL object
@@ -514,7 +550,7 @@ optionalArg t name =
 -- | ```purescript
 -- | objectType "User"
 -- |   .> "A user of the product."
--- |   :> "id" Scalar.id
+-- |   :> field "id" Scalar.id
 -- |     .> "A unique identifier for this user."
 -- | ```
 class Describe a where
@@ -603,7 +639,7 @@ withField (ObjectType objectConfigFn) fld@(
               Left err -> pure (ResultError err)
           execute' _ _ _ = pure (ResultError "Unexpected non field node field execution...")
 
--- | Add a field to an object type.
+-- | Operator for the `withField` function: Add a field to an object type.
 -- |
 -- | *Example:*
 -- | ```purescript
