@@ -176,19 +176,19 @@ import GraphQL (graphql)
 We can now execute the example query using this function.
 
 ```purescript
-graphql schema "{ hello }" Map.empty Nothing (pure unit)
+graphql schema "{ hello }" Map.empty Nothing unit
 ```
 
 The `graphql` function expects a hell lot of parameters.
 Parameter one and two should be familiar.
 They are the schema that we have just built together and the query string that will be executed.
-The last parameter `(pure unit)` is the root value that we have discussed earlier.
+The last parameter `unit` is the root value that we have discussed earlier.
 We will ignore the other two parameters for now and integrate the call into the `main` function.
 
 ```purescript
 main :: Effect Unit
 main = do
-  result <- graphql schema "{ hello }" Map.empty Nothing (pure unit)
+  result <- graphql schema "{ hello }" Map.empty Nothing unit
   log $ stringify result
 ```
 
