@@ -72,7 +72,7 @@ schemaType = schemaType'
           else (Nothing :: Maybe (Array TypeIntrospection))
         )
       :> GQL.nullableListField "possibleTypes" (defer \_ -> typeType)
-        !#> const (Nothing :: Maybe (Array TypeIntrospection))
+        !#> (\parent -> map (_ $ unit) (unwrap parent).possibleTypes)
       :> GQL.nullableListField "enumValues" enumValueType
         !#> unwrap >>> _.enumValues
       :> GQL.nullableListField "inputFields" (defer \_ -> inputValueType)

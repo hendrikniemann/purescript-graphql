@@ -9,16 +9,18 @@ import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Enum (class Enum, enumFromTo)
-import Data.List (List, fromFoldable, singleton)
+import Data.List (List, fromFoldable, singleton, filter)
 import Data.Map (Map, empty, insert, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Data.Traversable (class Traversable, find, traverse)
 import Data.Tuple (Tuple(..))
+import Data.Variant as Variant
 import Effect.Exception (Error, error, message)
 import GraphQL.Execution.Result (Result(..))
 import GraphQL.Language.AST as AST
+import GraphQL.Language.AST.Util (nameFromNameNode)
 import GraphQL.Type.Introspection.Datatypes as IntrospectionTypes
 import Prim.Row (class Lacks, class Cons)
 import Record as Record
@@ -76,6 +78,7 @@ instance graphqlTypeScalarType :: GraphQLType ScalarType where
       , inputs: Nothing
       , enumValues: Nothing
       , ofType: Nothing
+      , possibleTypes: Nothing
       }
 
 instance inputTypeScalarType :: InputType ScalarType where
@@ -213,6 +216,7 @@ instance graphqlTypeEnumType :: GraphQLType EnumType where
             , deprecationReason: Nothing
             }
       , ofType: Nothing
+      , possibleTypes: Nothing
       }
 
 instance inputTypeEnumType :: InputType EnumType where
@@ -248,6 +252,181 @@ instance outputTypeEnumType :: MonadError Error m => OutputType m EnumType where
 
   output _ _ _ _ = pure $ ResultError "Invalid subselection on enum type!"
 
+newtype UnionType m a = UnionType (Unit ->
+  { name :: String
+  , description :: Maybe String
+  , typeIntrospections :: Array IntrospectionTypes.TypeIntrospection
+  , output :: Maybe AST.SelectionSetNode -> ExecutionContext -> m a -> m Result
+  }
+)
+
+instance graphqlTypeUnionType :: GraphQLType (UnionType m) where
+  introspect (UnionType config) = IntrospectionTypes.TypeIntrospection
+    { kind: IntrospectionTypes.Union
+    , name: Just (config unit).name
+    , description: (config unit).description
+    , fields: Nothing
+    , inputs: Nothing
+    , enumValues: Nothing
+    , ofType: Nothing
+    , possibleTypes: Just \_ -> (config unit).typeIntrospections
+    }
+
+-- Takes a string and only returns part of the selection set that matches the return type
+-- TODO: Throw under certain cases, e.g. if there is a field selected in the root that is not
+--       `__typename`
+filterSelectionSet :: String -> AST.SelectionSetNode -> ExecutionContext -> AST.SelectionSetNode
+filterSelectionSet typeName (AST.SelectionSetNode { selections }) ctx =
+  AST.SelectionSetNode { selections: filter filterFn selections }
+    where
+      -- Only the __typename field is allowed on the root selection
+      filterFn (AST.FieldNode { name: AST.NameNode { value }}) = value == "__typename"
+
+      -- If we find a fragment we only include it into the selection if it matches the type
+      filterFn (AST.FragmentSpreadNode { name: AST.NameNode { value }}) =
+        case lookup value ctx.fragments of
+          Just (AST.FragmentDefinitionNode { typeCondition: AST.SimpleNamedTypeNode { name }}) ->
+            nameFromNameNode name == typeName
+          _ -> false
+
+      -- Same thing for inline fragment only here we don't have to lookup the fragment
+      filterFn (AST.InlineFragmentNode { typeCondition: AST.SimpleNamedTypeNode { name } }) =
+        nameFromNameNode name == typeName
+
+instance outputTypeUnionType :: (MonadError Error m) => OutputType m (UnionType m) where
+  output :: forall a. UnionType m a -> Maybe AST.SelectionSetNode -> ExecutionContext -> m a -> m Result
+  output (UnionType config) = (config unit).output
+
+union :: forall ctx def var. UnionDefinition def var ctx => String -> Record def -> UnionType ctx (Variant.Variant var)
+union = createUnionFromDefinition
+
+class UnionDefinition (defRow :: # Type) (varRow :: # Type) (ctx :: Type -> Type)
+    | defRow -> varRow
+    , varRow -> defRow where
+      createUnionFromDefinition ::
+        String ->
+        Record defRow ->
+        UnionType ctx (Variant.Variant varRow)
+
+-- This instance is only to get the row list type from the record
+instance unionDefinitionInstance ::
+  ( RL.RowToList defRow defRowList
+  , RL.RowToList varRow varRowList
+  , UnionIntrospection defRowList defRow
+  , UnionResolver defRowList varRowList defRow varRow ctx
+  , MonadError Error ctx
+  , RL.ListToRow defRowList defRow
+  , RL.ListToRow varRowList varRow ) => UnionDefinition defRow varRow ctx where
+    createUnionFromDefinition name defRecord =
+      let
+        typeIntrospections = unionIntrospection (RLProxy :: RLProxy defRowList) defRecord
+        output selectionSetNode execCtx ctxValue = ctxValue >>=
+          unionResolver
+            (RLProxy :: RLProxy defRowList)
+            (RLProxy :: RLProxy varRowList)
+            defRecord
+            selectionSetNode
+            execCtx
+      in
+        UnionType $ \_ -> { name, description: Nothing, typeIntrospections, output }
+
+class UnionIntrospection
+  (defRowList :: RL.RowList)
+  (defRow :: # Type)
+  where
+    unionIntrospection ::
+      RLProxy defRowList ->
+      Record defRow ->
+      Array IntrospectionTypes.TypeIntrospection
+
+instance unionIntrospectionCons ::
+  ( Row.Cons l (ObjectType ctx a) defRowTail defRow
+  , Row.Lacks l defRowTail
+  , UnionIntrospection defRowListTail defRowTail
+  , IsSymbol l
+  ) =>
+    UnionIntrospection (RL.Cons l (ObjectType ctx a) defRowListTail) defRow
+        where
+          unionIntrospection defRLProxy defRecord =
+            let
+              ObjectType configFn = Record.get (SProxy :: SProxy l) defRecord
+              config = configFn unit
+            in
+              -- Recursively call function
+              Array.cons config.introspection $
+                unionIntrospection
+                  (RLProxy :: RLProxy defRowListTail)
+                  -- We will just read from this value
+                  (unsafeCoerce defRecord :: Record defRowTail)
+
+else instance unionIntrospectionNil :: UnionIntrospection RL.Nil defRow where
+  unionIntrospection _ _ = []
+
+class UnionResolver
+  (defRowList :: RL.RowList)
+  (varRowList :: RL.RowList)
+  (defRow :: # Type)
+  (varRow :: # Type)
+  (ctx :: Type -> Type)
+  where
+    unionResolver ::
+      RLProxy defRowList ->
+      RLProxy varRowList ->
+      Record defRow ->
+      Maybe AST.SelectionSetNode ->
+      ExecutionContext ->
+      (Variant.Variant varRow) ->
+      ctx Result
+
+instance unionResolverCons ::
+  ( Row.Cons l (ObjectType ctx a) defRowTail defRow
+  , Row.Cons l a varRowTail varRow
+  , Row.Lacks l defRowTail
+  , Row.Lacks l varRowTail
+  , UnionResolver defRowListTail varRowListTail defRowTail varRowTail ctx
+  , MonadError Error ctx
+  , IsSymbol l
+  ) =>
+    UnionResolver
+      (RL.Cons l (ObjectType ctx a) defRowListTail)
+      (RL.Cons l a varRowListTail)
+      defRow
+      varRow
+      ctx
+        where
+          unionResolver ::
+            RLProxy (RL.Cons l (ObjectType ctx a) defRowListTail) ->
+            RLProxy (RL.Cons l a varRowListTail) ->
+            Record defRow ->
+            Maybe AST.SelectionSetNode ->
+            ExecutionContext ->
+            (Variant.Variant varRow) ->
+            ctx Result
+          unionResolver defRLProxy varRLProxy defRecord Nothing execCtx =
+            const $ throwError $ error "Missing selection set for union type"
+          unionResolver defRLProxy varRLProxy defRecord (Just selection) execCtx =
+            let
+              objectType@(ObjectType config) = Record.get (SProxy :: SProxy l) defRecord
+              typename = (config unit).name
+              filteredSelection = filterSelectionSet typename selection execCtx
+              recResolver ::
+                (Variant.Variant varRowTail) ->
+                ctx Result
+              recResolver =
+                unionResolver
+                  (RLProxy :: RLProxy defRowListTail)
+                  (RLProxy :: RLProxy varRowListTail)
+                  (unsafeCoerce defRecord :: Record defRowTail)
+                  (Just selection)
+                  execCtx
+            in
+                recResolver
+                  # Variant.on (SProxy :: SProxy l)
+                    (pure >>> output objectType (Just filteredSelection) execCtx)
+
+else instance unionResolverNil :: Functor ctx => UnionResolver RL.Nil RL.Nil defRow varRow ctx where
+  unionResolver _ _ _ _ _ = unsafeCoerce >>> Variant.case_
+
 newtype InputObjectType a = InputObjectType (Unit ->
   { name :: String
   , description :: Maybe String
@@ -266,6 +445,7 @@ instance graphqlTypeInputObjectType :: GraphQLType InputObjectType where
       , inputs: Just $ (config unit).fieldIntrospection
       , enumValues: Nothing
       , ofType: Nothing
+      , possibleTypes: Nothing
       }
 
 instance inputTypeInputObjectType :: InputType InputObjectType where
@@ -304,6 +484,7 @@ objectType name =
       , inputs: Nothing
       , enumValues: Nothing
       , ofType: Nothing
+      , possibleTypes: Nothing
       }
   in
     ObjectType (\_ -> { name, fields: empty, introspection })
@@ -332,6 +513,7 @@ field name t =
             , inputs: Nothing
             , enumValues: Nothing
             , ofType: Just $ \_ -> introspect t
+            , possibleTypes: Nothing
             }
 
 -- | Create a new field for an object type that is a list. You can return any `Traversable` from the
@@ -366,6 +548,7 @@ listField name t =
             , fields: Nothing
             , enumValues: Nothing
             , inputs: Nothing
+            , possibleTypes: Nothing
             , ofType: Just $ \_ ->
                 IntrospectionTypes.TypeIntrospection
                   { kind: IntrospectionTypes.List
@@ -375,6 +558,7 @@ listField name t =
                   , enumValues: Nothing
                   , inputs: Nothing
                   , ofType: Just $ \_ -> introspect t
+                  , possibleTypes: Nothing
                   }
             }
 
@@ -449,6 +633,7 @@ nullableListField name t =
             , inputs: Nothing
             , enumValues: Nothing
             , ofType: Just $ \_ -> introspect t
+            , possibleTypes: Nothing
             }
 
 -- | Create a tuple with a given name and a plain argument of the given type. Arguments are passed
@@ -519,7 +704,6 @@ optionalArg t name =
       resolveValue a execCtx = Just <$> input t a execCtx
 
 
-
 inputObjectType :: String -> InputObjectType {}
 inputObjectType name = InputObjectType \_ ->
   { name
@@ -527,6 +711,7 @@ inputObjectType name = InputObjectType \_ ->
   , fieldIntrospection: []
   , input: \_ _ -> Right {}
   }
+
 
 inputField :: forall t l a. IsSymbol l => InputType t => t a -> SProxy l -> InputField l a
 inputField inputType label = InputField

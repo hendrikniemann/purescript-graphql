@@ -17,6 +17,7 @@ You can edit this file as you like.
   , "record"
   , "spec"
   , "string-parsers"
+  , "variant"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
