@@ -13,7 +13,7 @@ But I have gathered feedback from the community and came up with these interesti
 ## Free Choice of Execution Context
 
 This is the biggest change and pretty much the sole motivator for the rewrite.
-The GraphQL result can now be calculated inside of the context of any monad.
+The GraphQL result can now be calculated inside of the context of any monad (that supports errors).
 Usually the execution of a schema is an effectful computation.
 The user of the library is now completely free to use any effect monad of their choice as long as it provides a `MonadError Error` implementation (like e.g. `Aff` or `Effect`).
 If the execution is completely pure one can even use `Either Error` to create side-effectless synchronious schemas.
@@ -33,4 +33,11 @@ Tired of arrays?
 You prefer your good old `List`?
 Or sometimes you just want to directly return a `Map` from a resolver?
 No problem!
-PureScript GraphQL will painlessly traverse your data structure into a JSON array.
+PureScript GraphQL will painlessly fold your data structure into a JSON array.
+`Traversable` is needed to collect the results of the child resolvers into the context monad.
+
+## New functional DSL
+
+In PureScript GraphQL v2 we introduce a new embedded DSL to create GraphQL types.
+All data structures used to create a schema are now plain immutable PureScript types, that can be combined and changed with the provided functions and operators.
+This allows us to write interesting abstractions on top of PureScript GraphQL.
