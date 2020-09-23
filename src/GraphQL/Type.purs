@@ -12,7 +12,7 @@ import Data.Enum (class Enum, enumFromTo)
 import Data.List (List, fromFoldable, singleton, filter)
 import Data.Map (Map, empty, insert, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Newtype (class Newtype, unwrap, wrap)
+import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Data.Traversable (class Traversable, find, traverse)
 import Data.Tuple (Tuple(..))
@@ -70,16 +70,7 @@ newtype ScalarType a =
 
 instance graphqlTypeScalarType :: GraphQLType ScalarType where
   introspect (ScalarType { name, description }) =
-    IntrospectionTypes.TypeIntrospection
-      { kind: IntrospectionTypes.Scalar
-      , name: Just name
-      , description
-      , fields: Nothing
-      , inputs: Nothing
-      , enumValues: Nothing
-      , ofType: Nothing
-      , possibleTypes: Nothing
-      }
+    IntrospectionTypes.ScalarTypeIntrospection { name, description }
 
 instance inputTypeScalarType :: InputType ScalarType where
   input (ScalarType config) (Just node) execCtx = case node of
@@ -203,20 +194,15 @@ newtype EnumValue a =
 
 instance graphqlTypeEnumType :: GraphQLType EnumType where
   introspect (EnumType { name, description, values }) =
-    IntrospectionTypes.TypeIntrospection
-      { kind: IntrospectionTypes.Enum
-      , name: Just name
+    IntrospectionTypes.EnumTypeIntrospection
+      { name
       , description
-      , fields: Nothing
-      , inputs: Nothing
-      , enumValues: pure $ values <#> \(EnumValue val) ->
+      , enumValues: values <#> \(EnumValue val) ->
           IntrospectionTypes.EnumValueIntrospection
             { name: val.name
             , description: val.description
             , deprecationReason: Nothing
             }
-      , ofType: Nothing
-      , possibleTypes: Nothing
       }
 
 instance inputTypeEnumType :: InputType EnumType where
@@ -261,15 +247,10 @@ newtype UnionType m a = UnionType (Unit ->
 )
 
 instance graphqlTypeUnionType :: GraphQLType (UnionType m) where
-  introspect (UnionType config) = IntrospectionTypes.TypeIntrospection
-    { kind: IntrospectionTypes.Union
-    , name: Just (config unit).name
+  introspect (UnionType config) = IntrospectionTypes.UnionTypeIntrospection
+    { name: (config unit).name
     , description: (config unit).description
-    , fields: Nothing
-    , inputs: Nothing
-    , enumValues: Nothing
-    , ofType: Nothing
-    , possibleTypes: Just \_ -> (config unit).typeIntrospections
+    , possibleTypes: \_ -> (config unit).typeIntrospections
     }
 
 -- Takes a string and only returns part of the selection set that matches the return type
@@ -437,15 +418,10 @@ newtype InputObjectType a = InputObjectType (Unit ->
 
 instance graphqlTypeInputObjectType :: GraphQLType InputObjectType where
   introspect (InputObjectType config) =
-    IntrospectionTypes.TypeIntrospection
-      { kind: IntrospectionTypes.InputObject
-      , name: Just (config unit).name
+    IntrospectionTypes.InputObjectTypeIntrospection
+      { name: (config unit).name
       , description: (config unit).description
-      , fields: Nothing
-      , inputs: Just $ (config unit).fieldIntrospection
-      , enumValues: Nothing
-      , ofType: Nothing
-      , possibleTypes: Nothing
+      , inputFields: (config unit).fieldIntrospection
       }
 
 instance inputTypeInputObjectType :: InputType InputObjectType where
@@ -476,16 +452,8 @@ newtype InputField l a = InputField
 objectType :: forall m a. String -> ObjectType m a
 objectType name =
   let
-    introspection = IntrospectionTypes.TypeIntrospection
-      { kind: IntrospectionTypes.Object
-      , name: Just name
-      , description: Nothing
-      , fields: Just []
-      , inputs: Nothing
-      , enumValues: Nothing
-      , ofType: Nothing
-      , possibleTypes: Nothing
-      }
+    introspection = IntrospectionTypes.ObjectTypeIntrospection
+      { name, description: Nothing, fields: [] }
   in
     ObjectType (\_ -> { name, fields: empty, introspection })
 
@@ -505,16 +473,7 @@ field name t =
         serialize _ _ _ _ = pure $ ResultError "Obtained non FieldNode for field serialisation."
 
         typeIntrospection _ =
-          IntrospectionTypes.TypeIntrospection
-            { kind: IntrospectionTypes.NonNull
-            , name: Nothing
-            , description: Nothing
-            , fields: Nothing
-            , inputs: Nothing
-            , enumValues: Nothing
-            , ofType: Just $ \_ -> introspect t
-            , possibleTypes: Nothing
-            }
+          IntrospectionTypes.NonNullTypeIntrospection { ofType: \_ -> introspect t }
 
 -- | Create a new field for an object type that is a list. You can return any `Traversable` from the
 -- | resolver.
@@ -541,25 +500,9 @@ listField name t =
           pure $ ResultError "Obtained non FieldNode for field serialisation."
 
         typeIntrospection _ =
-          IntrospectionTypes.TypeIntrospection
-            { kind: IntrospectionTypes.NonNull
-            , name: Nothing
-            , description: Nothing
-            , fields: Nothing
-            , enumValues: Nothing
-            , inputs: Nothing
-            , possibleTypes: Nothing
-            , ofType: Just $ \_ ->
-                IntrospectionTypes.TypeIntrospection
-                  { kind: IntrospectionTypes.List
-                  , name: Nothing
-                  , description: Nothing
-                  , fields: Nothing
-                  , enumValues: Nothing
-                  , inputs: Nothing
-                  , ofType: Just $ \_ -> introspect t
-                  , possibleTypes: Nothing
-                  }
+          IntrospectionTypes.NonNullTypeIntrospection
+            { ofType: \_ ->
+                IntrospectionTypes.ListTypeIntrospection { ofType: \_ -> introspect t }
             }
 
 -- | Create a new field for an object type that is optional (i.e. it can be null). The resolver
@@ -625,16 +568,7 @@ nullableListField name t =
           pure $ ResultError "Obtained non FieldNode for field serialisation."
 
         typeIntrospection _ =
-          IntrospectionTypes.TypeIntrospection
-            { kind: IntrospectionTypes.List
-            , name: Nothing
-            , description: Nothing
-            , fields: Nothing
-            , inputs: Nothing
-            , enumValues: Nothing
-            , ofType: Just $ \_ -> introspect t
-            , possibleTypes: Nothing
-            }
+          IntrospectionTypes.ListTypeIntrospection { ofType: \_ -> introspect t }
 
 -- | Create a tuple with a given name and a plain argument of the given type. Arguments are passed
 -- | into the resolver. Arguments created with this function are required and the query fails if
@@ -748,9 +682,12 @@ instance describeObjectType :: Describe (ObjectType m a) where
       ObjectType $ \_ ->
         let
           config = configFn unit
-          newIntrospection = wrap $ (unwrap config.introspection) { description = Just s }
+          updateDescription (IntrospectionTypes.ObjectTypeIntrospection introspection) =
+            IntrospectionTypes.ObjectTypeIntrospection $
+              introspection { description = Just s }
+          updateDescription other = other
         in
-          config { introspection = newIntrospection }
+          config { introspection = updateDescription config.introspection }
 
 instance describeField :: Describe (Field m a argsd argsp) where
   describe (Field config) s = Field (config { description = Just s })
@@ -806,11 +743,12 @@ withField (ObjectType objectConfigFn) fld@(
             , deprecationReason: Nothing
             }
 
-          introspection = unwrap objectConfig.introspection
+          updateIntrospection (IntrospectionTypes.ObjectTypeIntrospection introspection) =
+            IntrospectionTypes.ObjectTypeIntrospection $
+              introspection { fields = Array.snoc introspection.fields fieldIntrospection }
+          updateIntrospection other = other
 
-          updatedIntrospection =
-            IntrospectionTypes.TypeIntrospection $
-              introspection { fields = map (flip Array.snoc fieldIntrospection) (introspection.fields) }
+          updatedIntrospection = updateIntrospection objectConfig.introspection
         in
           objectConfig { fields = updatedFields, introspection = updatedIntrospection }
 
@@ -1026,7 +964,7 @@ withInputField :: forall l a r1 r2.
   => InputObjectType { | r1 }
   -> InputField l a
   -> InputObjectType { | r2 }
-withInputField (InputObjectType objConfig) (InputField inputConfig) =InputObjectType (\_ ->
+withInputField (InputObjectType objConfig) (InputField inputConfig) = InputObjectType (\_ ->
     let
       config = (objConfig unit)
       fieldLabel = (SProxy :: SProxy l)

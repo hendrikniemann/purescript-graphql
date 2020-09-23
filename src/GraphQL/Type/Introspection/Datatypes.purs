@@ -8,7 +8,7 @@ import Data.Generic.Rep.Bounded (genericBottom, genericTop)
 import Data.Generic.Rep.Enum (genericPred, genericSucc)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Ord (genericCompare)
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 
 newtype SchemaIntrospection = SchemaIntrospection
@@ -20,31 +20,80 @@ newtype SchemaIntrospection = SchemaIntrospection
 derive instance newtypeSchemaIntrospection :: Newtype SchemaIntrospection _
 
 
-newtype TypeIntrospection = TypeIntrospection
-  { kind :: TypeKind
-  , name :: Maybe String
-  , description :: Maybe String
-  , fields :: Maybe (Array FieldIntrospection)
-  , enumValues :: Maybe (Array EnumValueIntrospection)
-  , inputs :: Maybe (Array InputValueIntrospection)
-  , possibleTypes :: Maybe (Unit -> Array TypeIntrospection)
-  , ofType :: Maybe (Unit -> TypeIntrospection)
-  }
+-- | This data type is used to gather information at runtime about the schema. Each GraphQL type can
+-- | be introspected and has to return some information about its structure.
+data TypeIntrospection
+  = ScalarTypeIntrospection
+      { name :: String
+      , description :: Maybe String
+      }
+  | ObjectTypeIntrospection
+      { name :: String
+      , description :: Maybe String
+      , fields :: Array FieldIntrospection
+      }
+  | EnumTypeIntrospection
+      { name :: String
+      , description :: Maybe String
+      , enumValues :: Array EnumValueIntrospection
+      }
+  | InputObjectTypeIntrospection
+      { name :: String
+      , description :: Maybe String
+      , inputFields :: Array InputValueIntrospection
+      }
+  | UnionTypeIntrospection
+      { name :: String
+      , description :: Maybe String
+      , possibleTypes :: Unit -> Array TypeIntrospection
+      }
+  | ListTypeIntrospection
+      { ofType :: Unit -> TypeIntrospection }
+  | NonNullTypeIntrospection
+      { ofType :: Unit -> TypeIntrospection }
 
 
-derive instance newtypeTypeIntrospection :: Newtype TypeIntrospection _
+-- | Read the name of a type from a type introspection. Not all types have names: List and
+-- | non-null types don't have names on their own.
+getName :: TypeIntrospection -> Maybe String
+getName (ScalarTypeIntrospection { name }) = Just name
+getName (ObjectTypeIntrospection { name }) = Just name
+getName (InputObjectTypeIntrospection { name }) = Just name
+getName (EnumTypeIntrospection { name }) = Just name
+getName (UnionTypeIntrospection { name }) = Just name
+getName _ = Nothing
+
+-- | Read the description of a type from a type introspection.
+getDescription :: TypeIntrospection -> Maybe String
+getDescription (ScalarTypeIntrospection { description }) = description
+getDescription (ObjectTypeIntrospection { description }) = description
+getDescription (InputObjectTypeIntrospection { description }) = description
+getDescription (EnumTypeIntrospection { description }) = description
+getDescription (UnionTypeIntrospection { description }) = description
+getDescription _ = Nothing
+
+
+-- | Get the type kind of an introspection
+getTypeKind :: TypeIntrospection -> TypeKind
+getTypeKind (ScalarTypeIntrospection _) = Scalar
+getTypeKind (ObjectTypeIntrospection _) = Object
+getTypeKind (InputObjectTypeIntrospection _) = InputObject
+getTypeKind (EnumTypeIntrospection _) = Enum
+getTypeKind (UnionTypeIntrospection _) = Union
+getTypeKind (ListTypeIntrospection _) = List
+getTypeKind (NonNullTypeIntrospection _) = NonNull
 
 
 -- We can abuse the fact that our schema can only have unique type names to create an efficient Eq
--- instance
+-- instance to only compare the names of two types
 instance eqTypeIntrospection :: Eq TypeIntrospection where
-  eq (TypeIntrospection t1) (TypeIntrospection t2) = t1.name == t2.name
+  eq t1 t2 = getName t1 == getName t2
 
 
 -- We can abuse the fact that our schema can only have unique type names to create an efficient Ord
 -- instance
 instance ordTypeIntrospection :: Ord TypeIntrospection where
-  compare (TypeIntrospection t1) (TypeIntrospection t2) = compare t1.name t2.name
+  compare t1 t2 = compare (getName t1) (getName t2)
 
 
 newtype EnumValueIntrospection = EnumValueIntrospection
@@ -80,6 +129,7 @@ newtype InputValueIntrospection = InputValueIntrospection
 derive instance newtypeInputValueIntrospection :: Newtype InputValueIntrospection _
 
 
+-- | An enum value for different GraphQL kinds
 data TypeKind
   = Scalar
   | Object

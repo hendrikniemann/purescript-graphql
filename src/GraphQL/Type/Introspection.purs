@@ -5,13 +5,12 @@ import Prelude
 import Control.Lazy (defer)
 import Control.Monad.Error.Class (class MonadError)
 import Data.Array (fromFoldable)
-import Data.Function (applyFlipped)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Newtype (unwrap)
 import Effect.Exception (Error)
 import GraphQL.Type ((!#>), (.>), (:>))
 import GraphQL.Type as GQL
-import GraphQL.Type.Introspection.Datatypes (EnumValueIntrospection, FieldIntrospection, InputValueIntrospection, SchemaIntrospection, TypeIntrospection(..), TypeKind(..))
+import GraphQL.Type.Introspection.Datatypes (EnumValueIntrospection, FieldIntrospection, InputValueIntrospection, SchemaIntrospection, TypeIntrospection(..), TypeKind, getDescription, getName, getTypeKind)
 import GraphQL.Type.Introspection.Util (collectTypes)
 import GraphQL.Type.Scalar as Scalar
 
@@ -57,28 +56,37 @@ schemaType = schemaType'
         types possible at runtime. List and NonNull types compose other types.
       """
       :> GQL.field "kind" typeKindType
-        !#> unwrap >>> _.kind
+        !#> getTypeKind
       :> GQL.nullableField "name" Scalar.string
-        !#> unwrap >>> _.name
+        !#> getName
       :> GQL.nullableField "description" Scalar.string
-        !#> unwrap >>> _.description
-      :> GQL.nullableListField "fields" (defer \_ -> fieldType) -- TODO: Make nullable
-        !#> unwrap >>> _.fields
-      -- For spec compliance; this implementation does not support interfaces or unions yet
+        !#> getDescription
+      :> GQL.nullableListField "fields" (defer \_ -> fieldType)
+        !#> case _ of
+              (ObjectTypeIntrospection { fields }) -> Just fields
+              _ -> Nothing
+      -- For spec compliance; this implementation does not support interfaces yet
       :> GQL.nullableListField "interfaces" (defer \_ -> typeType)
-        !#> (\(TypeIntrospection t) ->
-          if t.kind == Object
-          then Just []
-          else (Nothing :: Maybe (Array TypeIntrospection))
-        )
+        !#> case _ of
+              (ObjectTypeIntrospection _) -> Just []
+              _ -> Nothing
       :> GQL.nullableListField "possibleTypes" (defer \_ -> typeType)
-        !#> (\parent -> map (_ $ unit) (unwrap parent).possibleTypes)
+        !#> case _ of
+              (UnionTypeIntrospection { possibleTypes }) -> Just $ possibleTypes unit
+              _ -> Nothing
       :> GQL.nullableListField "enumValues" enumValueType
-        !#> unwrap >>> _.enumValues
+        !#> case _ of
+              (EnumTypeIntrospection { enumValues }) -> Just enumValues
+              _ -> Nothing
       :> GQL.nullableListField "inputFields" (defer \_ -> inputValueType)
-        !#> unwrap >>> _.inputs
+        !#> case _ of
+              (InputObjectTypeIntrospection { inputFields }) -> Just inputFields
+              _ -> Nothing
       :> GQL.nullableField "ofType" (defer \_ -> typeType)
-        !#> unwrap >>> _.ofType >>> map applyUnit
+        !#> case _ of
+              (ListTypeIntrospection { ofType }) -> Just (ofType unit)
+              (NonNullTypeIntrospection { ofType }) -> Just (ofType unit)
+              _ -> Nothing
 
     typeKindType :: GQL.EnumType TypeKind
     typeKindType = GQL.enumType "__TypeKind"
@@ -95,7 +103,7 @@ schemaType = schemaType'
       :> GQL.nullableField "description" Scalar.string
         !#> unwrap >>> _.description
       :> GQL.field "type" (defer \_ -> typeType)
-        !#> unwrap >>> _.type >>> applyUnit
+        !#> unwrap >>> _.type >>> (_ $ unit)
       :> GQL.listField "args" (defer \_ -> inputValueType)
         !#> unwrap >>> _.args
       :> GQL.field "isDeprecated" Scalar.boolean
@@ -129,12 +137,10 @@ schemaType = schemaType'
       :> GQL.nullableField "description" Scalar.string
         !#> unwrap >>> _.description
       :> GQL.field "type" (defer \_ -> typeType)
-        !#> unwrap >>> _.type >>> applyUnit
+        !#> unwrap >>> _.type >>> (_ $ unit)
       :> GQL.nullableField "defaultValue" Scalar.string
         !#> unwrap >>> _.defaultValue
 
-    applyUnit :: forall a. (Unit -> a) -> a
-    applyUnit = applyFlipped unit
 
 -- type __Type {
 --   kind: __TypeKind!
