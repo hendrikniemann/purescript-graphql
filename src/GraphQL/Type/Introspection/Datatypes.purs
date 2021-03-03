@@ -63,6 +63,7 @@ getName (EnumTypeIntrospection { name }) = Just name
 getName (UnionTypeIntrospection { name }) = Just name
 getName _ = Nothing
 
+
 -- | Read the description of a type from a type introspection.
 getDescription :: TypeIntrospection -> Maybe String
 getDescription (ScalarTypeIntrospection { description }) = description

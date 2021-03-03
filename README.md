@@ -28,15 +28,13 @@ module Main where
 
 import Prelude
 
-import Data.Argonaut.Core (stringify)
+import Data.Argonaut (stringify)
 import Data.Map as Map
 import Data.Symbol (SProxy(..))
 import Effect (Effect)
 import Effect.Console as Console
-import GraphQL (graphql)
-import GraphQL.Type ((!>), (.>), (:>), (?>))
-import GraphQL.Type as GraphQL
-import GraphQL.Type.Scalar as Scalar
+import GraphQL ((!>), (.>), (:>), (?>), graphql)
+import GraphQL as GraphQL
 
 main :: Effect Unit
 main = do
@@ -50,8 +48,8 @@ queryType :: GraphQL.ObjectType Effect Unit
 queryType =
   GraphQL.objectType "Query"
     .> "The root query type."
-    :> GraphQL.field "hello" Scalar.string
-      ?> GraphQL.arg Scalar.string (SProxy :: SProxy "name")
+    :> GraphQL.field "hello" GraphQL.string
+      ?> GraphQL.arg GraphQL.string (SProxy :: SProxy "name")
       .> "A simple field that returns a greeting."
       !> (\{ name } _ -> pure $ "Hello, " <> name <> "!")
 ```

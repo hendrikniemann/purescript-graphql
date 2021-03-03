@@ -17,10 +17,8 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.String (trim)
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff, Error, throwError, error)
-import GraphQL (graphql)
-import GraphQL.Type ((!>), (.>), (:>), (?>), (!#>), (!!>))
-import GraphQL.Type as GQL
-import GraphQL.Type.Scalar as Scalar
+import GraphQL ((!>), (.>), (:>), (?>), (!#>), (!!>))
+import GraphQL as GQL
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
@@ -62,31 +60,31 @@ queryType :: GQL.ObjectType (Either Error) String
 queryType =
   GQL.objectType "Query"
     .> "The root query type"
-    :> GQL.field "hello" Scalar.string
+    :> GQL.field "hello" GQL.string
       .> "A simple test field that connects the root string with a greeting."
       !> (\_ p -> pure $ "Hello " <> p <> "!")
-    :> GQL.field "greet" Scalar.string
+    :> GQL.field "greet" GQL.string
       .> "A field that takes a name and responds with a presonalized greeting."
-      ?> GQL.arg Scalar.string (SProxy :: SProxy "name")
+      ?> GQL.arg GQL.string (SProxy :: SProxy "name")
       !> (\{ name } _ -> pure $ "Greetings " <> name <> "!")
-    :> GQL.field "test" Scalar.int
+    :> GQL.field "test" GQL.int
       !#> const 42
     :> GQL.field "nested" userType
       !#> (const $ User { id: "user1", name: "Hendrik", age: 25, level: NormalUser })
-    :> GQL.listField "someList" Scalar.string
+    :> GQL.listField "someList" GQL.string
       !#> (const ["This", "is", "a", "little", "list"])
-    :> GQL.nullableField "nullable" Scalar.float
+    :> GQL.nullableField "nullable" GQL.float
       !#> (const Nothing)
-    :> GQL.field "reflect" Scalar.string
+    :> GQL.field "reflect" GQL.string
       ?> GQL.arg userLevelType (SProxy :: _ "argIn")
       !> (\{ argIn } _ -> pure $ show argIn)
-    :> GQL.field "reflectStringOptional" Scalar.string
-      ?> GQL.optionalArg Scalar.string (SProxy :: _ "argIn")
+    :> GQL.field "reflectStringOptional" GQL.string
+      ?> GQL.optionalArg GQL.string (SProxy :: _ "argIn")
       !> (\{ argIn } _ -> pure $ fromMaybe "default" argIn)
-    :> GQL.field "toggle" Scalar.boolean
-      ?> GQL.arg Scalar.boolean (SProxy :: _ "on")
+    :> GQL.field "toggle" GQL.boolean
+      ?> GQL.arg GQL.boolean (SProxy :: _ "on")
       !> (\{ on: onArg } _ -> pure $ not onArg)
-    :> GQL.nullableField "fail" Scalar.boolean
+    :> GQL.nullableField "fail" GQL.boolean
       !!> (\_ -> throwError $ error "Always fails at runtime.")
 
 
@@ -94,11 +92,11 @@ userType :: GQL.ObjectType (Either Error) User
 userType =
   GQL.objectType "User"
     .> "A type for all users in the database"
-    :> GQL.field "id" Scalar.string
+    :> GQL.field "id" GQL.string
       !#> unwrap >>> _.id
-    :> GQL.field "name" Scalar.string
+    :> GQL.field "name" GQL.string
       !#> unwrap >>> _.name
-    :> GQL.field "age" Scalar.int
+    :> GQL.field "age" GQL.int
       !#> unwrap >>> _.age
     :> GQL.field "level" userLevelType
       !#> unwrap >>> _.level
@@ -112,7 +110,7 @@ userLevelType =
 
 testQuery :: String -> String -> Aff Unit
 testQuery query expected =
-  case graphql testSchema query Map.empty Nothing "Hendrik" of
+  case GQL.graphql testSchema query Map.empty Nothing "Hendrik" of
   Right res -> stringify res `shouldEqual` expected
 
   Left message -> fail $ show message
@@ -212,5 +210,5 @@ executionSpec =
 
     it "Accepts null as a variable value for an optional parameter" $ affFromEither do
       let query = "query ($arg: String) { reflectStringOptional(argIn: $arg) }"
-      res <- graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing ""
+      res <- GQL.graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing ""
       stringify res `shouldEqual` """{"data":{"reflectStringOptional":"default"}}"""

@@ -1,4 +1,11 @@
-module GraphQL where
+module GraphQL
+  ( graphql
+  , module Execution
+  , module Language
+  , module GQL
+  , module DSL
+  , module Scalar
+  ) where
 
 import Prelude
 
@@ -10,10 +17,12 @@ import Data.Map (Map, fromFoldable)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect.Exception (Error, error)
-import GraphQL.Execution (execute)
-import GraphQL.Language (parse)
+import GraphQL.DSL (class ArgsDefToArgsParam, class ArgsFromRows, class Describe, class UnionDefinition, class UnionIntrospection, class UnionResolver, arg, argsFromDefinition, argsFromRows, describe, enumType, field, inputField, optionalInputField, inputObjectType, listField, nullableField, nullableListField, objectType, optionalArg, union, unionIntrospection, unionResolver, withArgument, withField, withInputField, withMappingResolver, withResolver, withSimpleResolver, (!!>), (!#>), (!>), (.>), (:>), (:?>), (?>)) as DSL
+import GraphQL.Execution (execute) as Execution
+import GraphQL.Language (parse) as Language
 import GraphQL.Language.AST as AST
-import GraphQL.Type (Schema)
+import GraphQL.Type (class GraphQLType, class InputType, class OutputType, Argument, EnumType, ExecutionContext, Field, InputField(..), InputObjectType(..), ObjectType, ScalarType(..), Schema(..), UnionType, input, introspect, output) as GQL
+import GraphQL.Builtin.Scalar (boolean, float, id, int, string) as Scalar
 
 -- | Parses a GraphQL query string into a document and then executes the query given the parameters
 -- |
@@ -28,14 +37,14 @@ import GraphQL.Type (Schema)
 graphql ::
   ∀ m a.
   MonadError Error m =>
-  Schema m a ->
+  GQL.Schema m a ->
   String ->
   Map String Json ->
   Maybe String ->
   a ->
   m Json
 graphql schema query variables operation root =
-  case parse query of
+  case Language.parse query of
   Left message -> throwError $ error $ "Parsing Error: " <> message
   Right document@(AST.DocumentNode { definitions }) ->
     let
@@ -43,4 +52,4 @@ graphql schema query variables operation root =
         f@(AST.FragmentDefinitionNode { name: AST.NameNode n }) -> pure $ Tuple n.value f
         _ -> Nothing
     in
-      execute document schema { variables, fragments } operation (pure root)
+      Execution.execute document schema { variables, fragments } operation (pure root)

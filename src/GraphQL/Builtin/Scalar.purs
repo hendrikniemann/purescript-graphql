@@ -1,4 +1,4 @@
-module GraphQL.Type.Scalar where
+module GraphQL.Builtin.Scalar where
 
 import Prelude
 

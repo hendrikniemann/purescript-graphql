@@ -44,7 +44,7 @@ collectTypes (SchemaIntrospection { queryType, mutationType }) =
         Set TypeIntrospection
       collectTypesFromArg set (InputValueIntrospection config) =
         let
-          inputType = config.type unit
+          inputType = getNamedType $ config.type unit
         in
           if member inputType set then set else
             let
@@ -57,3 +57,9 @@ collectTypes (SchemaIntrospection { queryType, mutationType }) =
                 _ -> set
             in
               insert inputType newSet
+
+
+getNamedType :: TypeIntrospection -> TypeIntrospection
+getNamedType (ListTypeIntrospection { ofType }) = getNamedType (ofType unit)
+getNamedType (NonNullTypeIntrospection { ofType }) = getNamedType (ofType unit)
+getNamedType t = t

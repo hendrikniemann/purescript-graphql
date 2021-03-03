@@ -1,4 +1,4 @@
-module GraphQL.Type.Introspection where
+module GraphQL.Builtin.Introspection where
 
 import Prelude
 
@@ -8,11 +8,12 @@ import Data.Array (fromFoldable)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Newtype (unwrap)
 import Effect.Exception (Error)
-import GraphQL.Type ((!#>), (.>), (:>))
-import GraphQL.Type as GQL
+import GraphQL.DSL ((!#>), (.>), (:>))
+import GraphQL.DSL (enumType, field, listField, nullableField, nullableListField, objectType) as GQL
+import GraphQL.Type (ObjectType, EnumType) as GQL
 import GraphQL.Type.Introspection.Datatypes (EnumValueIntrospection, FieldIntrospection, InputValueIntrospection, SchemaIntrospection, TypeIntrospection(..), TypeKind, getDescription, getName, getTypeKind)
 import GraphQL.Type.Introspection.Util (collectTypes)
-import GraphQL.Type.Scalar as Scalar
+import GraphQL.Builtin.Scalar as Scalar
 
 
 schemaType :: forall m. (MonadError Error m) => GQL.ObjectType m SchemaIntrospection

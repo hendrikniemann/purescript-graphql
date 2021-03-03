@@ -8,15 +8,17 @@ import Data.Argonaut.Encode ((:=), (~>))
 import Data.List (List(..), find)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Effect.Exception (Error, error)
+import GraphQL.DSL (field, (!#>), (:>))
 import GraphQL.Execution.Result (serializeResult)
 import GraphQL.Language.AST (DefinitionNode(..), DocumentNode(..), NameNode(..), OperationTypeNode(..))
-import GraphQL.Type (ObjectType, Schema(..), ExecutionContext, field, output, (!#>), (:>), introspect)
-import GraphQL.Type.Introspection (schemaType)
+import GraphQL.Type (ObjectType, Schema(..), ExecutionContext, output, introspect)
+import GraphQL.Builtin.Introspection (schemaType)
 import GraphQL.Type.Introspection.Datatypes (SchemaIntrospection(..))
 
 
 simpleError :: forall m. Applicative m => String -> m Json
 simpleError e = pure $ "error" := e ~> jsonEmptyObject
+
 
 -- | This function is mostly used internally. If you just want to execute a GraphQL query you should
 -- | probably use `graphql` from the `GraphQL` module.
