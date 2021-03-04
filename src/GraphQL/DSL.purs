@@ -5,12 +5,11 @@ import Prelude
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Data.Argonaut (printJsonDecodeError)
 import Data.Argonaut as Json
-import Data.Array (find)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Enum (class Enum, enumFromTo)
-import Data.List (List, fromFoldable)
+import Data.List (List, fromFoldable, find)
 import Data.Map (empty, insert, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
@@ -412,7 +411,7 @@ infixl 5 withField as :>
 
 -- | A type class that contrains the relationship between defined arguments and the _argument_
 -- | parameter of a resolver.
-class ArgsDefToArgsParam (argsd :: # Type) (argsp :: # Type)
+class ArgsDefToArgsParam (argsd :: Row Type) (argsp :: Row Type)
     | argsd -> argsp
     , argsp -> argsd where
       argsFromDefinition ::
@@ -433,10 +432,10 @@ instance argsDefToArgsParamImpl ::
 
 -- | ArgsDefToArgsParam that works on row lists for matching implementations
 class ArgsFromRows
-  (largsd :: RL.RowList)
-  (largsp :: RL.RowList)
-  (argsd :: # Type)
-  (argsp :: # Type)
+  (largsd :: RL.RowList Type)
+  (largsp :: RL.RowList Type)
+  (argsd :: Row Type)
+  (argsp :: Row Type)
   where
     argsFromRows ::
       RLProxy largsd ->
@@ -688,7 +687,7 @@ enumType name = EnumType { name, description: Nothing, values }
       EnumValue { name: show value, description: Nothing, value, isValue: eq value }
 
 
-class UnionDefinition (defRow :: # Type) (varRow :: # Type) (ctx :: Type -> Type)
+class UnionDefinition (defRow :: Row Type) (varRow :: Row Type) (ctx :: Type -> Type)
     | defRow -> varRow
     , varRow -> defRow where
       union ::
@@ -721,8 +720,8 @@ instance unionDefinitionInstance ::
 
 
 class UnionIntrospection
-  (defRowList :: RL.RowList)
-  (defRow :: # Type)
+  (defRowList :: RL.RowList Type)
+  (defRow :: Row Type)
   where
     unionIntrospection ::
       RLProxy defRowList ->
@@ -755,10 +754,10 @@ else instance unionIntrospectionNil :: UnionIntrospection RL.Nil defRow where
 
 
 class UnionResolver
-  (defRowList :: RL.RowList)
-  (varRowList :: RL.RowList)
-  (defRow :: # Type)
-  (varRow :: # Type)
+  (defRowList :: RL.RowList Type)
+  (varRowList :: RL.RowList Type)
+  (defRow :: Row Type)
+  (varRow :: Row Type)
   (ctx :: Type -> Type)
   where
     unionResolver ::

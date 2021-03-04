@@ -4,10 +4,10 @@ import Prelude
 
 import Data.Enum (class Enum)
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Bounded (genericBottom, genericTop)
-import Data.Generic.Rep.Enum (genericPred, genericSucc)
-import Data.Generic.Rep.Eq (genericEq)
-import Data.Generic.Rep.Ord (genericCompare)
+import Data.Bounded.Generic (genericBottom, genericTop)
+import Data.Enum.Generic (genericPred, genericSucc)
+import Data.Eq.Generic (genericEq)
+import Data.Ord.Generic (genericCompare)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 

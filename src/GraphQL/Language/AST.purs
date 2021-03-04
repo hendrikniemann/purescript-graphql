@@ -1,10 +1,11 @@
 module GraphQL.Language.AST where
 
 import Prelude
+
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
 import Data.List (List)
 import Data.Maybe (Maybe)
+import Data.Show.Generic (genericShow)
 
 data DocumentNode
   = DocumentNode { definitions :: List DefinitionNode }

@@ -24,6 +24,7 @@ type ExecutionContext =
   }
 
 -- | The type class for all GraphQL types
+class GraphQLType :: forall k. (k -> Type) -> Constraint
 class GraphQLType t where
   introspect :: forall a. t a -> IntrospectionTypes.TypeIntrospection
 
