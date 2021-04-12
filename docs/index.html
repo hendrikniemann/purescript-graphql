@@ -2,9 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>purescript-graphql-example - Example purescript graphql app</title>
+    <title>purescript-graphql - A PureScript GraphQL Implementation</title>
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
-    <meta name="description" content="Example purescript graphql app" />
+    <meta name="description" content="PureScript GraphQL implementation with end-to-end type checking." />
     <meta
       name="viewport"
       content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
@@ -87,7 +87,7 @@
             keyword: /\b(?:module|where)\b/,
           },
         },
-        keyword: /\b(?:case|else|if|in|infixl|infixr|let|of|then|type|newtype|data|where|class|instance|kind|forall)\b/,
+        keyword: /\b(?:case|else|if|in|infixl|infixr|let|of|then|type|newtype|data|where|class|instance|kind|forall|do|ado)\b/,
         number: /\b(?:\d+(?:\.\d+)?(?:e[+-]?\d+)?)\b/i,
         operator: /[+\-/*=.$<>:&|^?%#@~!]{2,}|[+\-/*=$<>:&|^?%#@~!]/,
         hvariable: /\b(?:[A-Z]\w*\.)*[a-z]\w*\b/,
@@ -114,7 +114,7 @@
             pattern: /(fragment\s+(?!on)[a-z_]\w*\s+|\.{3}\s*)on\b/,
             lookbehind: true,
           },
-          /\b(?:query|fragment|mutation|type|enum|schema)\b/,
+          /\b(?:query|fragment|mutation|type|enum|schema|union|interface)\b/,
         ],
         operator: /!|=|\.{3}/,
         punctuation: /[!(){}\[\]:=,]/,
