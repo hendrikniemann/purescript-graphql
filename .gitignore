@@ -9,3 +9,5 @@
 /.purs*
 /.psa*
 /example/
+/bower_components/
+Ideas.md

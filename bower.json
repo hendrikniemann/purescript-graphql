@@ -1,0 +1,23 @@
+{
+  "name": "purescript-graphql",
+  "description": "PureScript GraphQL Implementation",
+  "main": "src/Main.purs",
+  "authors": [
+    "hendrikniemann"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "purescript",
+    "graphql",
+    "typesafety",
+    "api"
+  ],
+  "homepage": "https://github.com/hendrikniemann/purescript-graphql",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
