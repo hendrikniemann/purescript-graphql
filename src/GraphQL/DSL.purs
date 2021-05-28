@@ -3,7 +3,6 @@ module GraphQL.DSL where
 import Prelude
 
 import Control.Monad.Error.Class (class MonadError, throwError)
-import Data.Argonaut (printJsonDecodeError)
 import Data.Argonaut as Json
 import Data.Array as Array
 import Data.Bifunctor (lmap)
@@ -631,7 +630,7 @@ withInputField (InputObjectType objConfig) (InputField inputConfig) = InputObjec
           (Just (AST.VariableNode { name: AST.NameNode n })) ->
             case lookup n.value execCtx.variables of
               Just json -> do
-                maybeValue <- lmap printJsonDecodeError $
+                maybeValue <- lmap Json.printJsonDecodeError $
                   -- TODO: We should probably throw if the variable is not an object...
                   Json.caseJsonObject (Right Nothing) (_ `Json.getFieldOptional'` fieldName) json
                 let hackedVariables = insert "variable_hack" (fromMaybe Json.jsonNull maybeValue) empty
