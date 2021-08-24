@@ -46,6 +46,10 @@ parserOperationSpec =
       let result = runParser document """{ hello }"""
       result `shouldEqual` Right (makeDocument identity)
 
+    it "parses a query without query keyword surrounded by whitespace" do
+      let result = runParser document "\n  \n\t{ hello }  \n"
+      result `shouldEqual` Right (makeDocument identity)
+
     it "parses an anonymous query with query keyword" do
       let result = runParser document """query { hello }"""
       result `shouldEqual` Right (makeDocument identity)
@@ -54,8 +58,17 @@ parserOperationSpec =
       let result = runParser document """mutation { hello }"""
       result `shouldEqual` Right (makeDocument (_ { operation = AST.Mutation }))
 
+    it "parses an anonymous mutation surrounded by whitespace" do
+      let result = runParser document "  mutation { hello }\n"
+      result `shouldEqual` Right (makeDocument (_ { operation = AST.Mutation }))
+
     it "parses a named query with query keyword" do
       let result = runParser document """query MyQuery { hello }"""
+      result `shouldEqual` Right
+        (makeDocument (_ { name = Just $ AST.NameNode { value: "MyQuery" } }))
+
+    it "parses a named query with query keyword surrounded by whitespace" do
+      let result = runParser document "  \nquery MyQuery { hello } "
       result `shouldEqual` Right
         (makeDocument (_ { name = Just $ AST.NameNode { value: "MyQuery" } }))
 

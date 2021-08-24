@@ -42,8 +42,8 @@ name = AST.NameNode <$> {value: _} <$> regex "[_A-Za-z][_0-9A-Za-z]*"
 -- | For performance they are all summarised in a single regex which is a bit different
 -- | from the specification that knows different types of ignored tokens.
 -- | See: https://graphql.github.io/graphql-spec/June2018/#sec-Source-Text.Ignored-Tokens
-whiteSpace :: Parser String
-whiteSpace = regex "(#[^\\n\\r]\\n\\r]|[, \\u0009\\n\\r\\uFEFF])*" -- Comments not completely correct
+whiteSpace :: Parser Unit
+whiteSpace = pure unit <* regex "(#[^\\n\\r]\\n\\r]|[, \\u0009\\n\\r\\uFEFF])*" -- Comments not completely correct
 
 -- | Helper function to parse tokens wrapped in white space
 token :: String -> Parser String
@@ -59,9 +59,12 @@ definition = operationDefinition <|> fragmentDefinition
 
 operationDefinition :: Parser AST.DefinitionNode
 operationDefinition = do
+  whiteSpace
   header <- optionMaybe operationHeader
   v <- variableDefinitionList <* whiteSpace <|> pure Nil
-  s <- selectionSet <* whiteSpace
+  s <- selectionSet
+  whiteSpace
+  -- If the operation has no keyword and no name it is an unnamed query
   let { op, n } = fromMaybe { op: AST.Query, n: Nothing } header
   pure $ AST.OperationDefinitionNode {name: n, operation: op, selectionSet: s, variableDefinitions: v }
     where
@@ -69,8 +72,10 @@ operationDefinition = do
     toOperation _ = AST.Mutation
     variableDefinitionList = parens $ many (whiteSpace *> variableDefinition <* whiteSpace)
     operationHeader = do
-      op <- toOperation <$> (token "query" <|> token "mutation")
-      n <- optionMaybe $ name <* whiteSpace
+      op <- toOperation <$> (string "query" <|> string "mutation")
+      whiteSpace
+      n <- optionMaybe $ name
+      whiteSpace
       pure { op, n }
 
 fragmentDefinition :: Parser AST.DefinitionNode
