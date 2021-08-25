@@ -3,9 +3,9 @@ module GraphQL.Type.Introspection.Util where
 import Prelude
 
 import Data.Foldable (foldl)
-import Data.Maybe (maybe)
-import Data.Set (Set, empty, insert, member)
-import GraphQL.Type.Introspection.Datatypes (FieldIntrospection(..), InputValueIntrospection(..), SchemaIntrospection(..), TypeIntrospection(..))
+import Data.Maybe (Maybe(..), maybe)
+import Data.Set (Set, empty, insert, member, filter, toUnfoldable)
+import GraphQL.Type.Introspection.Datatypes (FieldIntrospection(..), InputValueIntrospection(..), SchemaIntrospection(..), TypeIntrospection(..), getName)
 
 
 collectTypes :: SchemaIntrospection -> Set TypeIntrospection
@@ -63,3 +63,8 @@ getNamedType :: TypeIntrospection -> TypeIntrospection
 getNamedType (ListTypeIntrospection { ofType }) = getNamedType (ofType unit)
 getNamedType (NonNullTypeIntrospection { ofType }) = getNamedType (ofType unit)
 getNamedType t = t
+
+
+findTypeByName :: String -> SchemaIntrospection -> Maybe TypeIntrospection
+findTypeByName name schemaIntrospection =
+  toUnfoldable $ filter (getName >>> (_ == Just name)) $ collectTypes schemaIntrospection

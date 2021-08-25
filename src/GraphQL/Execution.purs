@@ -3,21 +3,19 @@ module GraphQL.Execution (execute) where
 import Prelude
 
 import Control.Monad.Error.Class (class MonadError, throwError)
-import Data.Argonaut.Core (Json, jsonEmptyObject)
-import Data.Argonaut.Encode ((:=), (~>))
+import Data.Argonaut.Core (Json)
 import Data.List (List(..), find)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Symbol (SProxy(..))
 import Effect.Exception (Error, error)
-import GraphQL.DSL (field, (!#>), (:>))
+import GraphQL.Builtin.Introspection (schemaType, typeType)
+import GraphQL.Builtin.Scalar as Scalar
+import GraphQL.DSL (arg, field, nullableField, (!#>), (:>), (?>), (!>))
 import GraphQL.Execution.Result (serializeResult)
 import GraphQL.Language.AST (DefinitionNode(..), DocumentNode(..), NameNode(..), OperationTypeNode(..))
 import GraphQL.Type (ObjectType, Schema(..), ExecutionContext, output, introspect)
-import GraphQL.Builtin.Introspection (schemaType)
-import GraphQL.Type.Introspection.Datatypes (SchemaIntrospection(..))
-
-
-simpleError :: forall m. Applicative m => String -> m Json
-simpleError e = pure $ "error" := e ~> jsonEmptyObject
+import GraphQL.Type.Introspection.Datatypes (SchemaIntrospection(..), TypeIntrospection)
+import GraphQL.Type.Introspection.Util (findTypeByName)
 
 
 -- | This function is mostly used internally. If you just want to execute a GraphQL query you should
@@ -58,7 +56,10 @@ execute (DocumentNode { definitions }) (Schema s) variables operation root = do
             }
         metaQuery = s.query
           :> field "__schema" (schemaType :: ObjectType m SchemaIntrospection)
-          !#> const schemaIntrospection
+            !#> const schemaIntrospection
+          :> nullableField "__type" (typeType :: ObjectType m TypeIntrospection)
+            ?> arg Scalar.string (SProxy :: _ "name")
+            !> ( \args _ -> pure $ findTypeByName args.name schemaIntrospection )
       in
         output metaQuery (Just selectionSet) variables root
 

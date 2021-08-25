@@ -6,7 +6,7 @@ import Prelude
 import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Test.Readme (readmeSpec)
-import Test.GraphQL.Execution (executionSpec)
+import Test.GraphQL.Execution (executionSpec, introspectionSpec)
 import Test.GraphQL.Execution.Result (executionResultSpec)
 import Test.GraphQL.Language.Parser (parserSpec)
 import Test.Spec.Reporter (consoleReporter)
@@ -16,5 +16,6 @@ main :: Effect Unit
 main = launchAff_ $ runSpec [consoleReporter] do
   parserSpec
   executionSpec
+  introspectionSpec
   executionResultSpec
   readmeSpec

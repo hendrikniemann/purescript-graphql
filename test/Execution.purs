@@ -4,20 +4,20 @@ import Prelude
 
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Core as Json
+import Data.Bounded.Generic (genericBottom, genericTop)
 import Data.Either (Either(..), either)
 import Data.Enum (class Enum)
-import Data.Bounded.Generic (genericBottom, genericTop)
 import Data.Enum.Generic (genericPred, genericSucc)
 import Data.Eq.Generic (genericEq)
 import Data.Generic.Rep (class Generic)
-import Data.Ord.Generic (genericCompare)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
+import Data.Ord.Generic (genericCompare)
 import Data.String (trim)
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff, Error, throwError, error)
-import GraphQL ((!>), (.>), (:>), (?>), (!#>), (!!>))
+import GraphQL ((!!>), (!#>), (!>), (.>), (:>), (?>))
 import GraphQL as GQL
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -180,7 +180,7 @@ executionSpec =
         """{ toggle(on: false) }"""
         """{"data":{"toggle":true}}"""
 
-    it "Catches errors thrown inside of resolvers" $
+    it "catches errors thrown inside of resolvers" $
       testQuery
         """{ fail }""" $
         trim """
@@ -195,7 +195,7 @@ executionSpec =
         """{ nested { __typename } }"""
         """{"data":{"nested":{"__typename":"User"}}}"""
 
-    it "Wraps optional parameters in maybe" do
+    it "wraps optional parameters in maybe" do
       testQuery
         """{ reflectStringOptional }"""
         """{"data":{"reflectStringOptional":"default"}}"""
@@ -203,12 +203,33 @@ executionSpec =
         """{ reflectStringOptional(argIn: "Hello World") }"""
         """{"data":{"reflectStringOptional":"Hello World"}}"""
 
-    it "Accepts null as a value for an optional parameter" $
+    it "accepts null as a value for an optional parameter" $
       testQuery
         """{ reflectStringOptional(argIn: null) }"""
         """{"data":{"reflectStringOptional":"default"}}"""
 
-    it "Accepts null as a variable value for an optional parameter" $ affFromEither do
+    it "accepts null as a variable value for an optional parameter" $ affFromEither do
       let query = "query ($arg: String) { reflectStringOptional(argIn: $arg) }"
       res <- GQL.graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing ""
       stringify res `shouldEqual` """{"data":{"reflectStringOptional":"default"}}"""
+
+
+introspectionSpec :: Spec Unit
+introspectionSpec =
+  describe "Introspection" do
+    describe "__type" do
+      it "returns type introspection by their name" do
+        testQuery
+          """{ __type(name: "User") { name } }"""
+          """{"data":{"__type":{"name":"User"}}}"""
+
+      it "returns null if no type with given name exists" do
+        testQuery
+          """{ __type(name: "NotFound") { name } }"""
+          """{"data":{"__type":null}}"""
+
+    describe "__Type" do
+      it "correctly returns data for object types" do
+        testQuery
+          """{ __type(name: "User") { name kind description } }"""
+          """{"data":{"__type":{"name":"User","kind":"OBJECT","description":"A type for all users in the database"}}}"""
