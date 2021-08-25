@@ -4,9 +4,13 @@ You can edit this file as you like.
 -}
 { name = "purescript-graphql"
 , dependencies =
-  [ "argonaut"
+  [ "aff"
+  , "argonaut"
+  , "argonaut-codecs"
+  , "argonaut-core"
   , "arrays"
   , "bifunctors"
+  , "console"
   , "control"
   , "effect"
   , "either"
