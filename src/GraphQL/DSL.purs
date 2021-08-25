@@ -181,7 +181,7 @@ nullableListField name t =
 -- |     !> \{ name } parent -> pure $ "Hello " <> name
 -- | ```
 arg :: forall t a n. InputType t => IsSymbol n => t a -> SProxy n -> Tuple (SProxy n) (Argument a)
-arg t name =
+arg t _name =
     Tuple (SProxy :: _ n) $
       Argument
         { description: Nothing
@@ -213,7 +213,7 @@ optionalArg ::
   t a ->
   SProxy n ->
   Tuple (SProxy n) (Argument (Maybe a))
-optionalArg t name =
+optionalArg t _name =
     Tuple (SProxy :: _ n) $
       Argument
         { description: Nothing
@@ -227,8 +227,8 @@ optionalArg t name =
       -- case but hard to remove the JSON null from the possible JSON values. I think this is the
       -- right place to implement this logic but I don't know how to remove this case completely
       -- from the input function.
-      resolveValue Nothing execCtx = Right Nothing
-      resolveValue (Just AST.NullValueNode) execCtx = Right Nothing
+      resolveValue Nothing _execCtx = Right Nothing
+      resolveValue (Just AST.NullValueNode) _execCtx = Right Nothing
       resolveValue a@(Just (AST.VariableNode { name: AST.NameNode n})) execCtx = do
         variableValue <- note ("Unknown variable \"" <> n.value <> "\".") $
           lookup n.value execCtx.variables
@@ -458,7 +458,7 @@ instance argsFromRowsCons ::
       argsd
       argsp
         where
-    argsFromRows argsdProxy argspProxy nodes variables argsd =
+    argsFromRows _argsdProxy _argspProxy nodes variables argsd =
       let key = SProxy :: SProxy l
           Argument argConfig = Record.get key argsd
           tailArgsDef = Record.delete key argsd :: Record targsd
@@ -736,7 +736,7 @@ instance unionIntrospectionCons ::
   ) =>
     UnionIntrospection (RL.Cons l (ObjectType ctx a) defRowListTail) defRow
         where
-          unionIntrospection defRLProxy defRecord =
+          unionIntrospection _ defRecord =
             let
               ObjectType configFn = Record.get (SProxy :: SProxy l) defRecord
               config = configFn unit
@@ -793,9 +793,9 @@ instance unionResolverCons ::
             ExecutionContext ->
             (Variant.Variant varRow) ->
             ctx Result
-          unionResolver defRLProxy varRLProxy defRecord Nothing execCtx =
+          unionResolver _defRLProxy _varRLProxy _defRecord Nothing _execCtx =
             const $ throwError $ error "Missing selection set for union type"
-          unionResolver defRLProxy varRLProxy defRecord (Just selection) execCtx =
+          unionResolver _defRLProxy _varRLProxy defRecord (Just selection) execCtx =
             let
               objectType@(ObjectType config) = Record.get (SProxy :: SProxy l) defRecord
               typename = (config unit).name
