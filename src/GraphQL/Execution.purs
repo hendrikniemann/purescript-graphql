@@ -4,7 +4,7 @@ import Prelude
 
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Data.Argonaut.Core (Json)
-import Data.List (List(..), find)
+import Data.List (List(..), filter, find)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Symbol (SProxy(..))
 import Effect.Exception (Error, error)
@@ -13,6 +13,7 @@ import GraphQL.Builtin.Scalar as Scalar
 import GraphQL.DSL (arg, field, nullableField, (!#>), (:>), (?>), (!>))
 import GraphQL.Execution.Result (serializeResult)
 import GraphQL.Language.AST (DefinitionNode(..), DocumentNode(..), NameNode(..), OperationTypeNode(..))
+import GraphQL.Language.AST.Util (isOperationDefinitonNode)
 import GraphQL.Type (ObjectType, Schema(..), ExecutionContext, output, introspect)
 import GraphQL.Type.Introspection.Datatypes (SchemaIntrospection(..), TypeIntrospection)
 import GraphQL.Type.Introspection.Util (findTypeByName)
@@ -41,7 +42,7 @@ execute (DocumentNode { definitions }) (Schema s) variables operation root = do
         (throwError $ error $ "Could not find definitions with name " <> operationName <> ".")
         (pure <$> find (hasOperationName operationName) definitions)
 
-    Nothing -> case definitions of
+    Nothing -> case filter isOperationDefinitonNode definitions of
       Nil -> throwError $ error "No definitions found in document."
       Cons query Nil -> pure query
       _ -> throwError $ error "Operation name is required for queries with multiple operations."

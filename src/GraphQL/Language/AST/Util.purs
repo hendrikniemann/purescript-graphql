@@ -1,10 +1,14 @@
 module GraphQL.Language.AST.Util where
 
 import Data.List (List)
-import GraphQL.Language.AST (NameNode(..), SelectionNode, SelectionSetNode(..))
+import GraphQL.Language.AST (DefinitionNode(..), NameNode(..), SelectionNode, SelectionSetNode(..))
 
 nameFromNameNode :: NameNode -> String
 nameFromNameNode (NameNode node) = node.value
 
 selectionsFromSelectionSet :: SelectionSetNode -> List SelectionNode
 selectionsFromSelectionSet (SelectionSetNode set) = set.selections
+
+isOperationDefinitonNode :: DefinitionNode -> Boolean
+isOperationDefinitonNode (OperationDefinitionNode _) = true
+isOperationDefinitonNode _ = false

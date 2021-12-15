@@ -101,7 +101,6 @@ userType =
     :> GQL.field "level" userLevelType
       !#> unwrap >>> _.level
 
-
 userLevelType :: GQL.EnumType UserLevel
 userLevelType =
   GQL.enumType "UserLevel"
@@ -218,18 +217,18 @@ introspectionSpec :: Spec Unit
 introspectionSpec =
   describe "Introspection" do
     describe "__type" do
-      it "returns type introspection by their name" do
+      it "returns type introspection by their name" $
         testQuery
           """{ __type(name: "User") { name } }"""
           """{"data":{"__type":{"name":"User"}}}"""
 
-      it "returns null if no type with given name exists" do
+      it "returns null if no type with given name exists" $
         testQuery
           """{ __type(name: "NotFound") { name } }"""
           """{"data":{"__type":null}}"""
 
     describe "__Type" do
-      it "correctly returns data for object types" do
+      it "correctly returns data for object types" $
         testQuery
           """{ __type(name: "User") { name kind description } }"""
           """{"data":{"__type":{"name":"User","kind":"OBJECT","description":"A type for all users in the database"}}}"""

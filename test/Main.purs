@@ -5,10 +5,11 @@ import Prelude
 
 import Effect (Effect)
 import Effect.Aff (launchAff_)
-import Test.Readme (readmeSpec)
+import Test.BindOverhead (bindOverheadSpec)
 import Test.GraphQL.Execution (executionSpec, introspectionSpec)
 import Test.GraphQL.Execution.Result (executionResultSpec)
 import Test.GraphQL.Language.Parser (parserSpec)
+import Test.Readme (readmeSpec)
 import Test.Spec.Reporter (consoleReporter)
 import Test.Spec.Runner (runSpec)
 
@@ -19,3 +20,4 @@ main = launchAff_ $ runSpec [consoleReporter] do
   introspectionSpec
   executionResultSpec
   readmeSpec
+  bindOverheadSpec

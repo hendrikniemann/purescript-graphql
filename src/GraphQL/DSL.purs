@@ -2,6 +2,7 @@ module GraphQL.DSL where
 
 import Prelude
 
+import Control.Bind (bindFlipped)
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Data.Argonaut as Json
 import Data.Array as Array
@@ -13,7 +14,7 @@ import Data.Map (empty, insert, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
-import Data.Traversable (class Traversable, traverse)
+import Data.Traversable (class Traversable, sequence, traverse)
 import Data.Tuple (Tuple(..))
 import Data.Variant as Variant
 import Effect.Exception (Error, error)
@@ -62,7 +63,7 @@ field name t =
     , argumentIntrospections: []
     , typeIntrospection }
       where
-        serialize (AST.FieldNode node) execCtx _ val = output t node.selectionSet execCtx (pure val)
+        serialize (AST.FieldNode node) execCtx _ val = output t node.selectionSet execCtx val
         serialize _ _ _ _ = pure $ ResultError "Obtained non FieldNode for field serialisation."
 
         typeIntrospection _ =
@@ -87,8 +88,10 @@ listField name t =
     , argumentIntrospections: []
     , typeIntrospection }
       where
+        serialize :: AST.SelectionNode -> ExecutionContext -> {} -> m (f a) -> m Result
         serialize (AST.FieldNode node) execCtx _ vals = do
-          ResultList <$> fromFoldable <$> traverse (output t node.selectionSet execCtx) (pure <$> vals)
+          values <- vals
+          ResultList <$> fromFoldable <$> traverse (output t node.selectionSet execCtx) (pure <$> values)
 
         serialize _ _ _ _ =
           pure $ ResultError "Obtained non FieldNode for field serialisation."
@@ -117,8 +120,8 @@ nullableField name t =
     , argumentIntrospections: []
     , typeIntrospection }
       where
-        serialize (AST.FieldNode node) execCtx _ value = do
-          case value of
+        serialize (AST.FieldNode node) execCtx _ value =
+          value >>= case _ of
             Nothing ->
               pure $ ResultNullable Nothing
 
@@ -149,8 +152,8 @@ nullableListField name t =
     , argumentIntrospections: []
     , typeIntrospection }
       where
-        serialize (AST.FieldNode node) variables _ values = do
-          case values of
+        serialize (AST.FieldNode node) variables _ values =
+          values >>= case _ of
             Nothing ->
               pure $ ResultNullable Nothing
 
@@ -390,7 +393,7 @@ withField (ObjectType objectConfigFn) fld@(
       makeExecutable :: Field m a argsd argsp -> ExecutableField m a
       makeExecutable (Field { args, serialize: serialize' }) = ExecutableField { execute: execute' }
         where
-          execute' :: a -> AST.SelectionNode -> ExecutionContext -> m Result
+          execute' :: m a -> AST.SelectionNode -> ExecutionContext -> m Result
           execute' val node@(AST.FieldNode { arguments: argumentNodes }) variables =
             case argsFromDefinition argumentNodes variables args of
               Right argumentValues -> serialize' node variables argumentValues val
@@ -507,7 +510,7 @@ withArgument (Field fieldConfig) (Tuple proxy argument) =
         AST.SelectionNode ->
         ExecutionContext ->
         Record argspnew ->
-        a ->
+        m a ->
         m Result
       serialize' node variables argsnew val =
         fieldConfig.serialize node variables (Record.delete proxy argsnew) val
@@ -547,8 +550,9 @@ withResolver :: forall m a b argsd argsp.
 withResolver (Field fieldConfig) resolver =
   Field $ fieldConfig { serialize = serialize }
     where
-      serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> b -> m Result
-      serialize node variables args = resolver args >=> fieldConfig.serialize node variables args
+      serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> m b -> m Result
+      serialize node variables args =
+        bindFlipped (resolver args) >>> fieldConfig.serialize node variables args
 
 
 -- | Add a resolver to a field that receives the arguments in a record and the parent value.
@@ -590,7 +594,11 @@ withMappingResolver :: forall m a b.
   Field m a () () ->
   (b -> a) ->
   Field m b () ()
-withMappingResolver fld resolver = withSimpleResolver fld (resolver >>> pure)
+withMappingResolver (Field fieldConfig) resolver =
+  Field $ fieldConfig { serialize = serialize }
+    where
+      serialize :: AST.SelectionNode -> ExecutionContext -> Record () -> m b -> m Result
+      serialize node variables args = map resolver >>> fieldConfig.serialize node variables args
 
 
 -- | Add a pure resolver to a field that simply maps the parent value.

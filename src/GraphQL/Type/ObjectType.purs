@@ -42,7 +42,7 @@ instance graphqlTypeObjectType :: GraphQLType (ObjectType m) where
 
 instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectType m) where
   output (ObjectType fno) (Just (AST.SelectionSetNode { selections })) execCtx mValue = do
-    value <- mValue
+    -- value <- mValue
     let serializeField node@(AST.FieldNode fld) =
           let (AST.NameNode { value: name }) = fld.name
               (AST.NameNode { value: alias }) = fromMaybe fld.name fld.alias
@@ -51,7 +51,7 @@ instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectTyp
             Just (ExecutableField { execute }) ->
               Tuple alias <$>
                 (flip catchError (message >>> ResultError >>> pure) $
-                  execute value node execCtx)
+                  execute mValue node execCtx)
             Nothing ->
               if
                 name == "__typename"
@@ -93,7 +93,7 @@ instance lazyObjectType :: Lazy (ObjectType m a) where
 -- | to the map of arguments of the object type. The execute function will extract the arguments of
 -- | the field from the AST.
 newtype ExecutableField m a =
-  ExecutableField { execute :: a -> AST.SelectionNode -> ExecutionContext -> m Result }
+  ExecutableField { execute :: m a -> AST.SelectionNode -> ExecutionContext -> m Result }
 
 
 derive instance newtypeExecutableField :: Newtype (ExecutableField m a) _
@@ -108,7 +108,7 @@ newtype Field m a argsd argsp =
     , typeIntrospection :: Unit -> IntrospectionTypes.TypeIntrospection
     , argumentIntrospections :: Array IntrospectionTypes.InputValueIntrospection
     , args :: Record argsd
-    , serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> a -> m Result
+    , serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> m a -> m Result
     }
 
 
