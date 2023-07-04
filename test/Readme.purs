@@ -32,9 +32,9 @@ queryType =
       !> (\{ name } _ -> pure $ "Hello, " <> name <> "!")
 
 -- | A spec that tests that the example in the README actually works
--- readmeSpec :: Spec Unit
--- readmeSpec =
---   describe "Readme" $
---     it "should execute the given query" $ liftEffect do
---       result <- graphql schema """{ hello(name: "Stranger") }""" Map.empty Nothing unit
---       stringify result `shouldEqual` """{"data":{"hello":"Hello, Stranger!"}}"""
+readmeSpec :: Spec Unit
+readmeSpec =
+  describe "Readme" $
+    it "should execute the given query" $ liftEffect do
+      result <- graphql schema """{ hello(name: "Stranger") }""" Map.empty Nothing unit
+      stringify result `shouldEqual` """{"data":{"hello":"Hello, Stranger!"}}"""

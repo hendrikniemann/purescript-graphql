@@ -9,18 +9,18 @@ import Prelude
 
 import Control.Lazy (class Lazy)
 import Control.Monad.Error.Class (class MonadError, catchError)
-import Control.Parallel (class Parallel, parallel, sequential)
 import Data.Argonaut as Json
 import Data.Either (Either)
 import Data.List (List, singleton)
 import Data.Map (Map, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
-import Data.Traversable (sequence, traverse)
+import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
 import Effect.Exception (Error, message)
 import GraphQL.Execution.Result (Result(..))
 import GraphQL.Language.AST as AST
+import GraphQL.OptionallyParallel (class OptionallyParallel, optionallyParallel, optionallySequential)
 import GraphQL.Type.Class (class GraphQLType, class OutputType, ExecutionContext)
 import GraphQL.Type.Introspection.Datatypes as IntrospectionTypes
 
@@ -41,13 +41,13 @@ instance graphqlTypeObjectType :: GraphQLType (ObjectType m) where
   introspect (ObjectType configFn) = (configFn unit).introspection
 
 
-instance (MonadError Error m, Parallel f m) => OutputType m (ObjectType m) where
+instance (MonadError Error m, OptionallyParallel f m) => OutputType m (ObjectType m) where
   -- output :: forall t a. t a -> Maybe AST.SelectionSetNode -> ExecutionContext -> m a -> m Result
   output (ObjectType fno) (Just (AST.SelectionSetNode { selections })) execCtx mValue = do
     value <- mValue
     let allFields = selections >>= collectField
     let resolvingFields = serializeField value <$> allFields
-    map ResultObject $ (sequential :: f ~> m) $ sequence $ (parallel :: m ~> f ) <$> resolvingFields
+    map ResultObject $ (optionallySequential :: f ~> m) $ sequence $ (optionallyParallel :: m ~> f ) <$> resolvingFields
       where
         -- | Flatten the selection node structure by spreading all fragments into the list
         collectField :: AST.SelectionNode -> List AST.SelectionNode

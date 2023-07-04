@@ -10,7 +10,6 @@ module GraphQL
 import Prelude
 
 import Control.Monad.Error.Class (class MonadError, throwError)
-import Control.Parallel (class Parallel)
 import Data.Argonaut.Core (Json)
 import Data.Either (Either(..))
 import Data.List (mapMaybe)
@@ -23,6 +22,7 @@ import GraphQL.DSL (class ArgsDefToArgsParam, class ArgsFromRows, class Describe
 import GraphQL.Execution (execute) as Execution
 import GraphQL.Language (parse) as Language
 import GraphQL.Language.AST as AST
+import GraphQL.OptionallyParallel (class OptionallyParallel)
 import GraphQL.Type (class GraphQLType, class InputType, class OutputType, Argument, EnumType, ExecutionContext, Field, InputField(..), InputObjectType(..), ObjectType, ScalarType(..), Schema(..), UnionType, input, introspect, output) as GQL
 
 -- | Parses a GraphQL query string into a document and then executes the query given the parameters
@@ -38,7 +38,7 @@ import GraphQL.Type (class GraphQLType, class InputType, class OutputType, Argum
 graphql ::
   ∀ m a f.
   MonadError Error m =>
-  Parallel f m =>
+  OptionallyParallel f m =>
   GQL.Schema m a ->
   String ->
   Map String Json ->

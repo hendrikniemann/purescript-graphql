@@ -3,7 +3,6 @@ module GraphQL.Execution (execute) where
 import Prelude
 
 import Control.Monad.Error.Class (class MonadError, throwError)
-import Control.Parallel (class Parallel)
 import Data.Argonaut.Core (Json)
 import Data.List (List(..), find)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -13,6 +12,7 @@ import GraphQL.Builtin.Scalar as Scalar
 import GraphQL.DSL (arg, field, nullableField, (!#>), (:>), (?>), (!>))
 import GraphQL.Execution.Result (serializeResult)
 import GraphQL.Language.AST (DefinitionNode(..), DocumentNode(..), NameNode(..), OperationTypeNode(..))
+import GraphQL.OptionallyParallel (class OptionallyParallel)
 import GraphQL.Type (ObjectType, Schema(..), ExecutionContext, output, introspect)
 import GraphQL.Type.Introspection.Datatypes (SchemaIntrospection(..), TypeIntrospection)
 import GraphQL.Type.Introspection.Util (findTypeByName)
@@ -26,7 +26,7 @@ import Type.Proxy (Proxy(..))
 -- | https://spec.graphql.org/June2018/#sec-Executing-Requests
 execute :: forall m a f.
   MonadError Error m =>
-  Parallel f m =>
+  OptionallyParallel f m =>
   DocumentNode ->
   Schema m a ->
   ExecutionContext ->

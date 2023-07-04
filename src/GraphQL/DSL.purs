@@ -3,7 +3,6 @@ module GraphQL.DSL where
 import Prelude
 
 import Control.Monad.Error.Class (class MonadError, throwError)
-import Control.Parallel (class Parallel)
 import Data.Argonaut as Json
 import Data.Array as Array
 import Data.Bifunctor (lmap)
@@ -20,6 +19,7 @@ import Data.Variant as Variant
 import Effect.Exception (Error, error)
 import GraphQL.Execution.Result (Result(..))
 import GraphQL.Language.AST as AST
+import GraphQL.OptionallyParallel (class OptionallyParallel)
 import GraphQL.Type.Class (class InputType, class OutputType, ExecutionContext, input, introspect, output)
 import GraphQL.Type.EnumType (EnumType(..), EnumValue(..))
 import GraphQL.Type.InputObjectType (InputField(..), InputObjectType(..))
@@ -777,7 +777,7 @@ instance unionResolverCons ::
   , Row.Lacks l varRowTail
   , UnionResolver defRowListTail varRowListTail defRowTail varRowTail ctx
   , MonadError Error ctx
-  , Parallel f ctx
+  , OptionallyParallel f ctx
   , IsSymbol l
   ) =>
     UnionResolver
