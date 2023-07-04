@@ -5,6 +5,7 @@ import Prelude
 
 import Effect (Effect)
 import Effect.Aff (launchAff_)
+import Test.Async (asyncTest)
 import Test.GraphQL.Execution (executionSpec, introspectionSpec)
 import Test.GraphQL.Execution.Result (executionResultSpec)
 import Test.GraphQL.Language.Parser (parserSpec)
@@ -17,3 +18,4 @@ main = launchAff_ $ runSpec [consoleReporter] do
   executionSpec
   introspectionSpec
   executionResultSpec
+  asyncTest
