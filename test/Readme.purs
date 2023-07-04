@@ -5,7 +5,6 @@ import Prelude
 import Data.Argonaut.Core (stringify)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Data.Symbol (SProxy(..))
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Console as Console
@@ -13,6 +12,7 @@ import GraphQL ((!>), (.>), (:>), (?>), graphql)
 import GraphQL as GraphQL
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
+import Type.Proxy (Proxy(..))
 
 main :: Effect Unit
 main = do
@@ -27,7 +27,7 @@ queryType =
   GraphQL.objectType "Query"
     .> "The root query type."
     :> GraphQL.field "hello" GraphQL.string
-      ?> GraphQL.arg GraphQL.string (SProxy :: SProxy "name")
+      ?> GraphQL.arg GraphQL.string (Proxy :: Proxy "name")
       .> "A simple field that returns a greeting."
       !> (\{ name } _ -> pure $ "Hello, " <> name <> "!")
 

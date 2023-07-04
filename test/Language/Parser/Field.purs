@@ -9,7 +9,7 @@ import GraphQL.Language.AST (ArgumentNode(..), DirectiveNode, NameNode(..), Sele
 import GraphQL.Language.Parser (selection)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
-import Text.Parsing.StringParser (runParser)
+import StringParser (runParser)
 
 baseField ::
   { alias :: Maybe NameNode

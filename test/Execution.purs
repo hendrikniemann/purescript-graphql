@@ -8,19 +8,17 @@ import Data.Bounded.Generic (genericBottom, genericTop)
 import Data.Either (Either(..), either)
 import Data.Enum (class Enum)
 import Data.Enum.Generic (genericPred, genericSucc)
-import Data.Eq.Generic (genericEq)
 import Data.Generic.Rep (class Generic)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
-import Data.Ord.Generic (genericCompare)
 import Data.String (trim)
-import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff, Error, throwError, error)
 import GraphQL ((!!>), (!#>), (!>), (.>), (:>), (?>))
 import GraphQL as GQL
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
+import Type.Proxy (Proxy(..))
 
 -- Some data types for out upcoming tests
 
@@ -32,11 +30,9 @@ data UserLevel = NormalUser | Moderator | Admin
 
 derive instance genericUserLevel :: Generic UserLevel _
 
-instance eqUserLevel :: Eq UserLevel where
-  eq = genericEq
+derive instance Eq UserLevel
 
-instance ordUserLevel :: Ord UserLevel where
-  compare = genericCompare
+derive instance Ord UserLevel
 
 instance boundedUserLevel :: Bounded UserLevel where
   top = genericTop
@@ -65,7 +61,7 @@ queryType =
       !> (\_ p -> pure $ "Hello " <> p <> "!")
     :> GQL.field "greet" GQL.string
       .> "A field that takes a name and responds with a presonalized greeting."
-      ?> GQL.arg GQL.string (SProxy :: SProxy "name")
+      ?> GQL.arg GQL.string (Proxy :: Proxy "name")
       !> (\{ name } _ -> pure $ "Greetings " <> name <> "!")
     :> GQL.field "test" GQL.int
       !#> const 42
@@ -76,13 +72,13 @@ queryType =
     :> GQL.nullableField "nullable" GQL.float
       !#> (const Nothing)
     :> GQL.field "reflect" GQL.string
-      ?> GQL.arg userLevelType (SProxy :: _ "argIn")
+      ?> GQL.arg userLevelType (Proxy :: _ "argIn")
       !> (\{ argIn } _ -> pure $ show argIn)
     :> GQL.field "reflectStringOptional" GQL.string
-      ?> GQL.optionalArg GQL.string (SProxy :: _ "argIn")
+      ?> GQL.optionalArg GQL.string (Proxy :: _ "argIn")
       !> (\{ argIn } _ -> pure $ fromMaybe "default" argIn)
     :> GQL.field "toggle" GQL.boolean
-      ?> GQL.arg GQL.boolean (SProxy :: _ "on")
+      ?> GQL.arg GQL.boolean (Proxy :: _ "on")
       !> (\{ on: onArg } _ -> pure $ not onArg)
     :> GQL.nullableField "fail" GQL.boolean
       !!> (\_ -> throwError $ error "Always fails at runtime.")

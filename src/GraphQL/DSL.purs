@@ -12,7 +12,7 @@ import Data.List (List, fromFoldable, find)
 import Data.Map (empty, insert, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
-import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
+import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Traversable (class Traversable, traverse)
 import Data.Tuple (Tuple(..))
 import Data.Variant as Variant
@@ -26,7 +26,7 @@ import GraphQL.Type.Introspection.Datatypes as IntrospectionTypes
 import GraphQL.Type.ObjectType (Argument(..), ExecutableField(..), Field(..), ObjectType(..))
 import GraphQL.Type.UnionType (UnionType(..), filterSelectionSet)
 import Record as Record
-import Type.Data.RowList (RLProxy(..))
+import Type.Proxy (Proxy(..))
 import Type.Row as Row
 import Type.RowList as RL
 import Unsafe.Coerce (unsafeCoerce)
@@ -177,12 +177,12 @@ nullableListField name t =
 -- | ```purescript
 -- | objectType "Query"
 -- |   :> field "hello" Scalar.string
--- |     ?> arg Scalar.string (SProxy :: _ "name")
+-- |     ?> arg Scalar.string (Proxy :: _ "name")
 -- |     !> \{ name } parent -> pure $ "Hello " <> name
 -- | ```
-arg :: forall t a n. InputType t => IsSymbol n => t a -> SProxy n -> Tuple (SProxy n) (Argument a)
+arg :: forall t a n. InputType t => IsSymbol n => t a -> Proxy n -> Tuple (Proxy n) (Argument a)
 arg t _name =
-    Tuple (SProxy :: _ n) $
+    Tuple (Proxy :: _ n) $
       Argument
         { description: Nothing
         , resolveValue: input t
@@ -200,7 +200,7 @@ arg t _name =
 -- | ```purescript
 -- | objectType "Query"
 -- |   :> field "hello" Scalar.string
--- |     ?> optionalArg Scalar.string (SProxy :: _ "name")
+-- |     ?> optionalArg Scalar.string (Proxy :: _ "name")
 -- |     !> (\{ name } parent -> case name of
 -- |          Just n -> pure $ "Hello " <> name
 -- |          Nothing -> pure "Hello stranger"
@@ -211,10 +211,10 @@ optionalArg ::
   InputType t =>
   IsSymbol n =>
   t a ->
-  SProxy n ->
-  Tuple (SProxy n) (Argument (Maybe a))
+  Proxy n ->
+  Tuple (Proxy n) (Argument (Maybe a))
 optionalArg t _name =
-    Tuple (SProxy :: _ n) $
+    Tuple (Proxy :: _ n) $
       Argument
         { description: Nothing
         , resolveValue
@@ -245,7 +245,7 @@ inputObjectType name = InputObjectType \_ ->
   }
 
 
-inputField :: forall t l a. IsSymbol l => InputType t => t a -> SProxy l -> InputField l a
+inputField :: forall t l a. IsSymbol l => InputType t => t a -> Proxy l -> InputField l a
 inputField inputType label = InputField
   { name: label
   , required: true
@@ -266,7 +266,7 @@ optionalInputField :: forall t l a.
   IsSymbol l =>
   InputType t =>
   t a ->
-  SProxy l ->
+  Proxy l ->
   InputField l (Maybe a)
 optionalInputField inputType label = InputField
   { name: label
@@ -426,7 +426,7 @@ instance argsDefToArgsParamImpl ::
   , ArgsFromRows largsd largsp argsd argsp
   , RL.ListToRow largsd argsd
   , RL.ListToRow largsp argsp ) => ArgsDefToArgsParam argsd argsp where
-    argsFromDefinition = argsFromRows (RLProxy :: RLProxy largsd) (RLProxy :: RLProxy largsp)
+    argsFromDefinition = argsFromRows (Proxy :: Proxy largsd) (Proxy :: Proxy largsp)
 
 
 -- | ArgsDefToArgsParam that works on row lists for matching implementations
@@ -437,8 +437,8 @@ class ArgsFromRows
   (argsp :: Row Type)
   where
     argsFromRows ::
-      RLProxy largsd ->
-      RLProxy largsp ->
+      Proxy largsd ->
+      Proxy largsp ->
       List AST.ArgumentNode ->
       ExecutionContext ->
       Record argsd ->
@@ -459,7 +459,7 @@ instance argsFromRowsCons ::
       argsp
         where
     argsFromRows _argsdProxy _argspProxy nodes variables argsd =
-      let key = SProxy :: SProxy l
+      let key = Proxy :: Proxy l
           Argument argConfig = Record.get key argsd
           tailArgsDef = Record.delete key argsd :: Record targsd
           nameEquals (AST.ArgumentNode { name: AST.NameNode { value } }) =
@@ -472,8 +472,8 @@ instance argsFromRowsCons ::
           resolvedValue = lmap improveInputError $ argConfig.resolveValue valueNode variables
           tail =
             argsFromRows
-              (RLProxy :: RLProxy ltargsd)
-              (RLProxy :: RLProxy ltargsp)
+              (Proxy :: Proxy ltargsd)
+              (Proxy :: Proxy ltargsp)
               nodes
               variables
               tailArgsDef
@@ -495,7 +495,7 @@ withArgument :: forall m a arg n argsdold argsdnew argspold argspnew.
   ArgsDefToArgsParam argsdold argspold =>
   ArgsDefToArgsParam argsdnew argspnew =>
   Field m a argsdold argspold ->
-  Tuple (SProxy n) (Argument arg) ->
+  Tuple (Proxy n) (Argument arg) ->
   Field m a argsdnew argspnew
 withArgument (Field fieldConfig) (Tuple proxy argument) =
   Field $ fieldConfig { args = args', serialize = serialize', argumentIntrospections = intros' }
@@ -530,7 +530,7 @@ withArgument (Field fieldConfig) (Tuple proxy argument) =
 -- | ```purescript
 -- | objectType "Query"
 -- |   :> field "hello" Scalar.string
--- |     ?> arg (SProxy :: SProxy "name") Scalar.string
+-- |     ?> arg (Proxy :: Proxy "name") Scalar.string
 -- |     !> (\{ name } parent -> "Hello " <> name <> "!")
 -- | ```
 infixl 7 withArgument as ?>
@@ -616,7 +616,7 @@ withInputField :: forall l a r1 r2.
 withInputField (InputObjectType objConfig) (InputField inputConfig) = InputObjectType (\_ ->
     let
       config = (objConfig unit)
-      fieldLabel = (SProxy :: SProxy l)
+      fieldLabel = (Proxy :: Proxy l)
       fieldName = reflectSymbol fieldLabel
 
       -- This function calls the old input function recursively and then also reads the new field
@@ -706,11 +706,11 @@ instance unionDefinitionInstance ::
   , RL.ListToRow varRowList varRow ) => UnionDefinition defRow varRow ctx where
     union name defRecord =
       let
-        typeIntrospections = unionIntrospection (RLProxy :: RLProxy defRowList) defRecord
+        typeIntrospections = unionIntrospection (Proxy :: Proxy defRowList) defRecord
         output selectionSetNode execCtx ctxValue = ctxValue >>=
           unionResolver
-            (RLProxy :: RLProxy defRowList)
-            (RLProxy :: RLProxy varRowList)
+            (Proxy :: Proxy defRowList)
+            (Proxy :: Proxy varRowList)
             defRecord
             selectionSetNode
             execCtx
@@ -723,7 +723,7 @@ class UnionIntrospection
   (defRow :: Row Type)
   where
     unionIntrospection ::
-      RLProxy defRowList ->
+      Proxy defRowList ->
       Record defRow ->
       Array IntrospectionTypes.TypeIntrospection
 
@@ -738,13 +738,13 @@ instance unionIntrospectionCons ::
         where
           unionIntrospection _ defRecord =
             let
-              ObjectType configFn = Record.get (SProxy :: SProxy l) defRecord
+              ObjectType configFn = Record.get (Proxy :: Proxy l) defRecord
               config = configFn unit
             in
               -- Recursively call function
               Array.cons config.introspection $
                 unionIntrospection
-                  (RLProxy :: RLProxy defRowListTail)
+                  (Proxy :: Proxy defRowListTail)
                   -- We will just read from this value
                   (unsafeCoerce defRecord :: Record defRowTail)
 
@@ -760,8 +760,8 @@ class UnionResolver
   (ctx :: Type -> Type)
   where
     unionResolver ::
-      RLProxy defRowList ->
-      RLProxy varRowList ->
+      Proxy defRowList ->
+      Proxy varRowList ->
       Record defRow ->
       Maybe AST.SelectionSetNode ->
       ExecutionContext ->
@@ -786,18 +786,18 @@ instance unionResolverCons ::
       ctx
         where
           unionResolver ::
-            RLProxy (RL.Cons l (ObjectType ctx a) defRowListTail) ->
-            RLProxy (RL.Cons l a varRowListTail) ->
+            Proxy (RL.Cons l (ObjectType ctx a) defRowListTail) ->
+            Proxy (RL.Cons l a varRowListTail) ->
             Record defRow ->
             Maybe AST.SelectionSetNode ->
             ExecutionContext ->
             (Variant.Variant varRow) ->
             ctx Result
-          unionResolver _defRLProxy _varRLProxy _defRecord Nothing _execCtx =
+          unionResolver _defProxy _varProxy _defRecord Nothing _execCtx =
             const $ throwError $ error "Missing selection set for union type"
-          unionResolver _defRLProxy _varRLProxy defRecord (Just selection) execCtx =
+          unionResolver _defProxy _varProxy defRecord (Just selection) execCtx =
             let
-              objectType@(ObjectType config) = Record.get (SProxy :: SProxy l) defRecord
+              objectType@(ObjectType config) = Record.get (Proxy :: Proxy l) defRecord
               typename = (config unit).name
               filteredSelection = filterSelectionSet typename selection execCtx
               recResolver ::
@@ -805,14 +805,14 @@ instance unionResolverCons ::
                 ctx Result
               recResolver =
                 unionResolver
-                  (RLProxy :: RLProxy defRowListTail)
-                  (RLProxy :: RLProxy varRowListTail)
+                  (Proxy :: Proxy defRowListTail)
+                  (Proxy :: Proxy varRowListTail)
                   (unsafeCoerce defRecord :: Record defRowTail)
                   (Just selection)
                   execCtx
             in
                 recResolver
-                  # Variant.on (SProxy :: SProxy l)
+                  # Variant.on (Proxy :: Proxy l)
                     (pure >>> output objectType (Just filteredSelection) execCtx)
 
 else instance unionResolverNil :: Functor ctx => UnionResolver RL.Nil RL.Nil defRow varRow ctx where

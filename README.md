@@ -30,7 +30,6 @@ import Prelude
 
 import Data.Argonaut (stringify)
 import Data.Map as Map
-import Data.Symbol (SProxy(..))
 import Effect (Effect)
 import Effect.Console as Console
 import GraphQL ((!>), (.>), (:>), (?>), graphql)
@@ -49,7 +48,7 @@ queryType =
   GraphQL.objectType "Query"
     .> "The root query type."
     :> GraphQL.field "hello" GraphQL.string
-      ?> GraphQL.arg GraphQL.string (SProxy :: SProxy "name")
+      ?> GraphQL.arg GraphQL.string (Proxy :: Proxy "name")
       .> "A simple field that returns a greeting."
       !> (\{ name } _ -> pure $ "Hello, " <> name <> "!")
 ```

@@ -9,7 +9,7 @@ import GraphQL.Language.AST as AST
 import GraphQL.Language.Parser (document)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
-import Text.Parsing.StringParser (runParser)
+import StringParser (runParser)
 
 type OperationConfig =
   { name :: Maybe AST.NameNode

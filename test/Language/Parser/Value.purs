@@ -8,7 +8,7 @@ import GraphQL.Language.AST (NameNode(..), ObjectFieldNode(..), ValueNode(..))
 import GraphQL.Language.Parser (value)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
-import Text.Parsing.StringParser (runParser)
+import StringParser (runParser)
 
 valueSpec :: Spec Unit
 valueSpec =
@@ -18,7 +18,7 @@ valueSpec =
 
     it "parses a simple string" $
       runParser value "\"some string\"" `shouldEqual` Right (StringValueNode {block: false, value: "some string"})
-    
+
     it "parses integer values" do
       runParser value "1234" `shouldEqual` Right (IntValueNode {value: "1234"})
       runParser value "0" `shouldEqual` Right (IntValueNode {value: "0"})
@@ -26,27 +26,27 @@ valueSpec =
       runParser value "-0" `shouldEqual` Right (IntValueNode {value: "-0"})
       isLeft (runParser value "02384") `shouldEqual` true
       isLeft (runParser value "-02384") `shouldEqual` true
-    
+
     it "parses float values" do
       runParser value "234.23476" `shouldEqual` Right (FloatValueNode {value: "234.23476"})
       runParser value "-1.2" `shouldEqual` Right (FloatValueNode {value: "-1.2"})
       runParser value "1234E72" `shouldEqual` Right (FloatValueNode {value: "1234E72"})
       runParser value "434E-2" `shouldEqual` Right (FloatValueNode {value: "434E-2"})
       isLeft (runParser value "-023.000") `shouldEqual` true
-    
+
     it "parses boolean values" do
       runParser value "true" `shouldEqual` Right (BooleanValueNode {value: true})
       runParser value "false" `shouldEqual` Right (BooleanValueNode {value: false})
-    
+
     it "parses null values" do
       runParser value "null" `shouldEqual` Right NullValueNode
-    
+
     it "parses enum values" do
       runParser value "SOME_ENUM" `shouldEqual` Right (EnumValueNode {name: NameNode {value: "SOME_ENUM"}})
       runParser value "uglyEnum" `shouldEqual` Right (EnumValueNode {name: NameNode {value: "uglyEnum"}})
       runParser value "lower" `shouldEqual` Right (EnumValueNode {name: NameNode {value: "lower"}})
       runParser value "WITH0" `shouldEqual` Right (EnumValueNode {name: NameNode {value: "WITH0"}})
-    
+
     it "parses list values" do
       let listOf1 = IntValueNode {value: "1"} : Nil
       runParser value "[]" `shouldEqual` Right (ListValueNode {values: Nil})

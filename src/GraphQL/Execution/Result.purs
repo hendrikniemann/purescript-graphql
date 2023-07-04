@@ -4,8 +4,9 @@ import Prelude
 
 import Data.Argonaut.Core (Json, fromNumber, fromString, jsonEmptyObject, jsonNull)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
+import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int as Int
-import Data.List (List(..), foldl, mapWithIndex, null, singleton, (:))
+import Data.List (List(..), foldl, null, singleton, (:))
 import Data.Maybe (Maybe, maybe)
 import Data.Tuple (Tuple(..), fst, snd)
 

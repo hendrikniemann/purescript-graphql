@@ -27,7 +27,7 @@ text :: String -> Doc
 text str = Text str Nil
 
 line :: Doc
-line = Line 0 Nil 
+line = Line 0 Nil
 
 nest :: Int -> Doc -> Doc
 nest indent Nil = Nil
@@ -70,9 +70,9 @@ printValueNode (AST.BooleanValueNode { value }) = if value then text "true" else
 printValueNode AST.NullValueNode = text "null"
 printValueNode (AST.EnumValueNode { name }) = printNameNode name
 printValueNode (AST.ListValueNode { values }) =
-  text "[" <> intercalate (text ", ") (map printValueNode values) <> text "]" 
+  text "[" <> intercalate (text ", ") (map printValueNode values) <> text "]"
 printValueNode (AST.ObjectValueNode { fields }) =
-  text "{" <> intercalate (text ", ") (map printObjectFieldNode fields) <> text "}" 
+  text "{" <> intercalate (text ", ") (map printObjectFieldNode fields) <> text "}"
 
 printBlockString :: String -> Doc
 printBlockString str =

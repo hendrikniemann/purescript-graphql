@@ -6,10 +6,10 @@ import Control.Lazy (class Lazy)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype, unwrap)
-import Data.Symbol (SProxy)
 import GraphQL.Language.AST as AST
 import GraphQL.Type.Class (class GraphQLType, class InputType, ExecutionContext)
 import GraphQL.Type.Introspection.Datatypes as IntrospectionTypes
+import Type.Proxy (Proxy)
 
 
 newtype InputObjectType a = InputObjectType (Unit ->
@@ -42,7 +42,7 @@ instance lazyInputObjectType :: Lazy (InputObjectType a) where
 
 
 newtype InputField l a = InputField
-  { name :: SProxy l
+  { name :: Proxy l
   , required :: Boolean
   , introspection :: IntrospectionTypes.InputValueIntrospection
   , input :: Maybe AST.ValueNode -> ExecutionContext -> Either String a

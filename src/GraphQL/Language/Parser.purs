@@ -16,10 +16,10 @@ import Data.List (List(..), toUnfoldable)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String.CodeUnits (fromCharArray)
 import GraphQL.Language.AST as AST
-import Text.Parsing.StringParser (Parser, try, fail)
-import Text.Parsing.StringParser.CodePoints (regex, string)
-import Text.Parsing.StringParser.CodeUnits (char, noneOf)
-import Text.Parsing.StringParser.Combinators (between, many, optionMaybe)
+import StringParser (Parser, try, fail)
+import StringParser.CodePoints (regex, string)
+import StringParser.CodeUnits (char, noneOf)
+import StringParser.Combinators (between, many, optionMaybe)
 
 parens :: forall a. Parser a -> Parser a
 parens = between (char '(') (char ')')

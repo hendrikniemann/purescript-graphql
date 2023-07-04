@@ -10,7 +10,7 @@ import Test.GraphQL.Language.Parser.Operation (parserOperationSpec)
 import Test.GraphQL.Language.Parser.Value (valueSpec)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
-import Text.Parsing.StringParser (runParser)
+import StringParser (runParser)
 
 parserSpec :: Spec Unit
 parserSpec =

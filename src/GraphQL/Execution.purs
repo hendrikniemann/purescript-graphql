@@ -6,7 +6,6 @@ import Control.Monad.Error.Class (class MonadError, throwError)
 import Data.Argonaut.Core (Json)
 import Data.List (List(..), find)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Symbol (SProxy(..))
 import Effect.Exception (Error, error)
 import GraphQL.Builtin.Introspection (schemaType, typeType)
 import GraphQL.Builtin.Scalar as Scalar
@@ -16,6 +15,7 @@ import GraphQL.Language.AST (DefinitionNode(..), DocumentNode(..), NameNode(..),
 import GraphQL.Type (ObjectType, Schema(..), ExecutionContext, output, introspect)
 import GraphQL.Type.Introspection.Datatypes (SchemaIntrospection(..), TypeIntrospection)
 import GraphQL.Type.Introspection.Util (findTypeByName)
+import Type.Proxy (Proxy(..))
 
 
 -- | This function is mostly used internally. If you just want to execute a GraphQL query you should
@@ -58,7 +58,7 @@ execute (DocumentNode { definitions }) (Schema s) variables operation root = do
           :> field "__schema" (schemaType :: ObjectType m SchemaIntrospection)
             !#> const schemaIntrospection
           :> nullableField "__type" (typeType :: ObjectType m TypeIntrospection)
-            ?> arg Scalar.string (SProxy :: _ "name")
+            ?> arg Scalar.string (Proxy :: _ "name")
             !> ( \args _ -> pure $ findTypeByName args.name schemaIntrospection )
       in
         output metaQuery (Just selectionSet) variables root
