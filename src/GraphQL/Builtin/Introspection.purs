@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Lazy (defer)
 import Control.Monad.Error.Class (class MonadError)
+import Control.Parallel (class Parallel)
 import Data.Array (fromFoldable)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Newtype (unwrap)
@@ -16,7 +17,7 @@ import GraphQL.Type.Introspection.Datatypes (EnumValueIntrospection, FieldIntros
 import GraphQL.Type.Introspection.Util (collectTypes)
 
 
-schemaType :: forall m. (MonadError Error m) => GQL.ObjectType m SchemaIntrospection
+schemaType :: forall f m. (MonadError Error m) => (Parallel f m) => GQL.ObjectType m SchemaIntrospection
 schemaType = GQL.objectType "__Schema"
   .> """
     A GraphQL Schema defines the capabilities of a GraphQL server. It exposes all available
@@ -44,7 +45,7 @@ schemaType = GQL.objectType "__Schema"
     !#> const []
 
 
-typeType :: forall m. (MonadError Error m) => GQL.ObjectType m TypeIntrospection
+typeType :: forall f m. (MonadError Error m) => (Parallel f m) => GQL.ObjectType m TypeIntrospection
 typeType = typeType'
   where
   typeType' = GQL.objectType "__Type"

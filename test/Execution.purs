@@ -2,6 +2,8 @@ module Test.GraphQL.Execution where
 
 import Prelude
 
+import Control.Monad.Error.Class (class MonadError, class MonadThrow)
+import Control.Parallel (class Parallel)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Core as Json
 import Data.Bounded.Generic (genericBottom, genericTop)
@@ -19,6 +21,28 @@ import GraphQL as GQL
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Type.Proxy (Proxy(..))
+
+newtype ParrEither a b = ParrEither (Either a b)
+
+derive instance Newtype (ParrEither a b) _
+
+derive newtype instance Functor (ParrEither a)
+
+derive newtype instance Apply (ParrEither a)
+
+derive newtype instance Applicative (ParrEither a)
+
+derive newtype instance Bind (ParrEither a)
+
+derive newtype instance Monad (ParrEither a)
+
+derive newtype instance MonadError a (ParrEither a)
+
+derive newtype instance MonadThrow a (ParrEither a)
+
+instance Parallel (ParrEither a) (ParrEither a) where
+  parallel = identity
+  sequential = identity
 
 -- Some data types for out upcoming tests
 
@@ -48,11 +72,11 @@ instance showUserLevel :: Show UserLevel where
   show NormalUser = "USER"
 
 
-testSchema :: GQL.Schema (Either Error) String
+testSchema :: GQL.Schema (ParrEither Error) String
 testSchema = GQL.Schema { query: queryType, mutation: Nothing }
 
 
-queryType :: GQL.ObjectType (Either Error) String
+queryType :: GQL.ObjectType (ParrEither Error) String
 queryType =
   GQL.objectType "Query"
     .> "The root query type"
@@ -84,7 +108,7 @@ queryType =
       !!> (\_ -> throwError $ error "Always fails at runtime.")
 
 
-userType :: GQL.ObjectType (Either Error) User
+userType :: GQL.ObjectType (ParrEither Error) User
 userType =
   GQL.objectType "User"
     .> "A type for all users in the database"
@@ -106,13 +130,13 @@ userLevelType =
 
 testQuery :: String -> String -> Aff Unit
 testQuery query expected =
-  case GQL.graphql testSchema query Map.empty Nothing "Hendrik" of
+  case GQL.graphql testSchema query Map.empty Nothing "Hendrik" # unwrap of
   Right res -> stringify res `shouldEqual` expected
 
   Left message -> fail $ show message
 
-affFromEither :: Either Error ~> Aff
-affFromEither = either throwError pure
+affFromEither :: ParrEither Error ~> Aff
+affFromEither = unwrap >>> either throwError pure
 
 executionSpec :: Spec Unit
 executionSpec =

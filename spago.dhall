@@ -23,6 +23,7 @@ You can edit this file as you like.
   , "newtype"
   , "numbers"
   , "ordered-collections"
+  , "parallel"
   , "prelude"
   , "psci-support"
   , "record"

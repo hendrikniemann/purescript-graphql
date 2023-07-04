@@ -3,6 +3,7 @@ module GraphQL.Execution (execute) where
 import Prelude
 
 import Control.Monad.Error.Class (class MonadError, throwError)
+import Control.Parallel (class Parallel)
 import Data.Argonaut.Core (Json)
 import Data.List (List(..), find)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -23,8 +24,9 @@ import Type.Proxy (Proxy(..))
 -- |
 -- | This function executes GraphQL requests and roughly implements the logic outlined here:
 -- | https://spec.graphql.org/June2018/#sec-Executing-Requests
-execute :: forall m a.
+execute :: forall m a f.
   MonadError Error m =>
+  Parallel f m =>
   DocumentNode ->
   Schema m a ->
   ExecutionContext ->

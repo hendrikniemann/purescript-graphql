@@ -59,7 +59,7 @@ type MediaVariant = Variant
 
 ## Using union types in PureScript GraphQL
 
-Variant types are not that easy to use, because we have to use `SProxy` to handle type level strings in our code.
+Variant types are not that easy to use, because we have to use `Proxy` to handle type level strings in our code.
 But they allow PureScript GraphQL to generate a Variant type, when we supply a record of object types for the union type.
 To build a union type in PureScript GraphQL, we use the `union` function from `GraphQL.Type` (here imported as `GQL`):
 

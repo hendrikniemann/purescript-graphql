@@ -9,13 +9,14 @@ import Prelude
 
 import Control.Lazy (class Lazy)
 import Control.Monad.Error.Class (class MonadError, catchError)
+import Control.Parallel (class Parallel, parallel, sequential)
 import Data.Argonaut as Json
 import Data.Either (Either)
 import Data.List (List, singleton)
 import Data.Map (Map, lookup)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
-import Data.Traversable (traverse)
+import Data.Traversable (sequence, traverse)
 import Data.Tuple (Tuple(..))
 import Effect.Exception (Error, message)
 import GraphQL.Execution.Result (Result(..))
@@ -40,32 +41,15 @@ instance graphqlTypeObjectType :: GraphQLType (ObjectType m) where
   introspect (ObjectType configFn) = (configFn unit).introspection
 
 
-instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectType m) where
+instance (MonadError Error m, Parallel f m) => OutputType m (ObjectType m) where
+  -- output :: forall t a. t a -> Maybe AST.SelectionSetNode -> ExecutionContext -> m a -> m Result
   output (ObjectType fno) (Just (AST.SelectionSetNode { selections })) execCtx mValue = do
     value <- mValue
-    let serializeField node@(AST.FieldNode fld) =
-          let (AST.NameNode { value: name }) = fld.name
-              (AST.NameNode { value: alias }) = fromMaybe fld.name fld.alias
-              o = fno unit
-          in case lookup name o.fields of
-            Just (ExecutableField { execute }) ->
-              Tuple alias <$>
-                (flip catchError (message >>> ResultError >>> pure) $
-                  execute value node execCtx)
-            Nothing ->
-              if
-                name == "__typename"
-              then
-                pure $ Tuple alias $ ResultLeaf $ Json.fromString o.name
-              else
-                pure $ Tuple alias $
-                  ResultError ("Unknown field `" <> name <> "` on type `" <> o.name <> "`.")
-        -- TODO: This branch needs fixing. It is for fragment spreads and so on. Maybe normalise
-        --       the query first and completely eliminate the branch...
-        serializeField _ = pure $ Tuple "unknown" $ ResultError "Unexpected fragment spread!"
-    ResultObject <$> traverse serializeField (selections >>= collectField)
+    let allFields = selections >>= collectField
+    let resolvingFields = serializeField value <$> allFields
+    map ResultObject $ (sequential :: f ~> m) $ sequence $ (parallel :: m ~> f ) <$> resolvingFields
       where
-        -- Flatten the selection node structure by spreading all fragments into the list
+        -- | Flatten the selection node structure by spreading all fragments into the list
         collectField :: AST.SelectionNode -> List AST.SelectionNode
         collectField n@(AST.FieldNode _) = singleton n
         collectField (AST.InlineFragmentNode {
@@ -77,6 +61,28 @@ instance outputTypeObjectType :: (MonadError Error m) => OutputType m (ObjectTyp
               selectionSet: AST.SelectionSetNode { selections: s }
             }) -> collectField =<< s
             _ -> mempty
+
+        -- serializeField :: a -> AST.SelectionNode -> m (Tuple String Result)
+        serializeField value node@(AST.FieldNode fld) = do
+          let (AST.NameNode { value: name }) = fld.name
+          let (AST.NameNode { value: alias }) = fromMaybe fld.name fld.alias
+          let o = fno unit
+          case lookup name o.fields of
+            Just (ExecutableField { execute }) ->
+              Tuple alias <$>
+                (flip catchError (message >>> ResultError >>> pure) $
+                  execute value node execCtx)
+            Nothing ->
+              if
+                name == "__typename"
+              then
+                pure $ Tuple alias $ ResultLeaf $ Json.fromString o.name
+              else
+                  pure $ Tuple alias $
+                    ResultError ("Unknown field `" <> name <> "` on type `" <> o.name <> "`.")
+            -- TODO: This branch needs fixing. It is for fragment spreads and so on. Maybe normalise
+            --       the query first and completely eliminate the branch...
+        serializeField _ _ = pure $ Tuple "unknown" $ ResultError "Unexpected fragment spread!"
 
   output _ _ _ _ = pure $ ResultError "Missing subselection on object type."
 

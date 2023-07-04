@@ -10,6 +10,7 @@ module GraphQL
 import Prelude
 
 import Control.Monad.Error.Class (class MonadError, throwError)
+import Control.Parallel (class Parallel)
 import Data.Argonaut.Core (Json)
 import Data.Either (Either(..))
 import Data.List (mapMaybe)
@@ -17,12 +18,12 @@ import Data.Map (Map, fromFoldable)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect.Exception (Error, error)
+import GraphQL.Builtin.Scalar (boolean, float, id, int, string) as Scalar
 import GraphQL.DSL (class ArgsDefToArgsParam, class ArgsFromRows, class Describe, class UnionDefinition, class UnionIntrospection, class UnionResolver, arg, argsFromDefinition, argsFromRows, describe, enumType, field, inputField, optionalInputField, inputObjectType, listField, nullableField, nullableListField, objectType, optionalArg, union, unionIntrospection, unionResolver, withArgument, withField, withInputField, withMappingResolver, withResolver, withSimpleResolver, (!!>), (!#>), (!>), (.>), (:>), (:?>), (?>)) as DSL
 import GraphQL.Execution (execute) as Execution
 import GraphQL.Language (parse) as Language
 import GraphQL.Language.AST as AST
 import GraphQL.Type (class GraphQLType, class InputType, class OutputType, Argument, EnumType, ExecutionContext, Field, InputField(..), InputObjectType(..), ObjectType, ScalarType(..), Schema(..), UnionType, input, introspect, output) as GQL
-import GraphQL.Builtin.Scalar (boolean, float, id, int, string) as Scalar
 
 -- | Parses a GraphQL query string into a document and then executes the query given the parameters
 -- |
@@ -35,8 +36,9 @@ import GraphQL.Builtin.Scalar (boolean, float, id, int, string) as Scalar
 -- |
 -- | @see https://spec.graphql.org/June2018/#sec-Execution
 graphql ::
-  ∀ m a.
+  ∀ m a f.
   MonadError Error m =>
+  Parallel f m =>
   GQL.Schema m a ->
   String ->
   Map String Json ->
