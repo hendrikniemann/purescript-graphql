@@ -4,7 +4,7 @@ import Prelude
 
 import Data.Foldable (foldl)
 import Data.Maybe (Maybe(..), maybe)
-import Data.Set (Set, empty, insert, member, filter, toUnfoldable)
+import Data.Set (Set, empty, filter, insert, member, toUnfoldable)
 import GraphQL.Type.Introspection.Datatypes (FieldIntrospection(..), InputValueIntrospection(..), SchemaIntrospection(..), TypeIntrospection(..), getName)
 
 
@@ -24,6 +24,12 @@ collectTypes (SchemaIntrospection { queryType, mutationType }) =
         if member introspection set
         then set
         else foldl collectTypesFromField (insert introspection set) fields
+
+      -- Same for union types that have multiple possible types
+      collectTypesRec introspection@(UnionTypeIntrospection { possibleTypes }) set =
+        if member introspection set
+        then set
+        else foldl (flip collectTypesRec) (insert introspection set) (possibleTypes unit)
 
       -- If the type has no fields we can simply return a set with one element
       collectTypesRec introspection set =
