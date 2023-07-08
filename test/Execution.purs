@@ -13,7 +13,8 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.String (trim)
-import Effect.Aff (Aff, Error, throwError, error)
+import Data.Variant (Variant, inj)
+import Effect.Aff (Aff, Error, error, throwError)
 import GraphQL ((!!>), (!#>), (!>), (.>), (:>), (?>))
 import GraphQL as GQL
 import Test.Spec (Spec, describe, it)
@@ -82,6 +83,32 @@ queryType =
       !> (\{ on: onArg } _ -> pure $ not onArg)
     :> GQL.nullableField "fail" GQL.boolean
       !!> (\_ -> throwError $ error "Always fails at runtime.")
+    :> GQL.field "unionField" exampleUnionType
+      ?> GQL.arg GQL.string (Proxy :: _ "type")
+      !> resolveUnion
+
+
+resolveUnion :: { "type" :: String } -> String -> (Either Error) ExampleVariant
+resolveUnion args _ = case args.type of
+  "user" -> pure $ inj (Proxy :: _ "user") $ User { id: "user1", name: "Hendrik", age: 25, level: NormalUser }
+  "test" -> pure $ inj (Proxy :: _ "test") "test"
+  _ -> throwError $ error "Unknown type"
+
+
+type ExampleVariant = Variant (user :: User, test :: String)
+
+
+exampleUnionType :: GQL.UnionType (Either Error) ExampleVariant
+exampleUnionType = GQL.union "ExampleUnion" { user: userType, test: testType }
+
+
+testType :: GQL.ObjectType (Either Error) String
+testType =
+  GQL.objectType "Test"
+    .> "A test type"
+    :> GQL.field "test" GQL.string
+      !#> const "test"
+
 
 
 userType :: GQL.ObjectType (Either Error) User
@@ -208,6 +235,22 @@ executionSpec =
       let query = "query ($arg: String) { reflectStringOptional(argIn: $arg) }"
       res <- GQL.graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing ""
       stringify res `shouldEqual` """{"data":{"reflectStringOptional":"default"}}"""
+
+    it "returns the right type name on union types" do
+      testQuery
+        """{ unionField(type: "user") { __typename } }"""
+        """{"data":{"unionField":{"__typename":"User"}}}"""
+      testQuery
+        """{ unionField(type: "test") { __typename } }"""
+        """{"data":{"unionField":{"__typename":"Test"}}}"""
+
+    it "resolves union type data correctly" do
+      testQuery
+        """{ unionField(type: "user") { ... on User { id } } }"""
+        """{"data":{"unionField":{"id":"user1"}}}"""
+      testQuery
+        """{ unionField(type: "test") { ... on Test { test } } }"""
+        """{"data":{"unionField":{"test":"test"}}}"""
 
 
 introspectionSpec :: Spec Unit

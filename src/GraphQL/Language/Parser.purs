@@ -16,7 +16,7 @@ import Data.List (List(..), toUnfoldable)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String.CodeUnits (fromCharArray)
 import GraphQL.Language.AST as AST
-import StringParser (Parser, try, fail)
+import StringParser (Parser, fail, try)
 import StringParser.CodePoints (regex, string)
 import StringParser.CodeUnits (char, noneOf)
 import StringParser.Combinators (between, many, optionMaybe)
@@ -80,14 +80,14 @@ operationDefinition = do
 
 fragmentDefinition :: Parser AST.DefinitionNode
 fragmentDefinition = do
-  n <- token "fragment" *> whiteSpace *> name <* whiteSpace
-  tn <- token "on" *> whiteSpace *> name <* whiteSpace
+  n <- token "fragment" *> name
+  typeCondition <- token "on" *> simpleNamedType <* whiteSpace
   s <- selectionSet <* whiteSpace
   pure $ AST.FragmentDefinitionNode
     { directives: mempty
     , name: n
     , selectionSet: s
-    , typeCondition: AST.SimpleNamedTypeNode { name: tn }
+    , typeCondition
     }
 
 variableDefinition :: Parser AST.VariableDefinitionNode
@@ -116,16 +116,20 @@ selectionSet =
   braces $ AST.SelectionSetNode <<< {selections: _} <$> many (defer \_ -> selection)
 
 selection :: Parser AST.SelectionNode
-selection =
-  try (whiteSpace *> defer \_ -> field <* whiteSpace)
-    <|> try (fragmentSpread <* whiteSpace)
-    <|> (whiteSpace *> inlineFragment <* whiteSpace)
+selection = between whiteSpace whiteSpace $ try (defer \_ -> field) <|> try inlineFragment <|> fragmentSpread
   where
   fragmentSpread :: Parser AST.SelectionNode
   fragmentSpread = AST.FragmentSpreadNode <<< {name: _, directives: Nil } <$> (token "..." *> name)
 
   inlineFragment :: Parser AST.SelectionNode
-  inlineFragment = fail "Inline Fragments not yet supported"
+  inlineFragment = do
+    typeCondition <- token "..." *> token "on" *> simpleNamedType <* whiteSpace
+    s <- selectionSet <* whiteSpace
+    pure $ AST.InlineFragmentNode
+      { typeCondition
+      , directives: mempty
+      , selectionSet: s
+      }
 
   field :: Parser AST.SelectionNode
   field = do
