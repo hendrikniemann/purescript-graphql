@@ -4,8 +4,9 @@ import Prelude
 
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Core as Json
+import Data.Array (length)
 import Data.Bounded.Generic (genericBottom, genericTop)
-import Data.Either (Either(..), either)
+import Data.Either (Either(..), either, note)
 import Data.Enum (class Enum)
 import Data.Enum.Generic (genericPred, genericSucc)
 import Data.Generic.Rep (class Generic)
@@ -13,10 +14,13 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.String (trim)
+import Data.Traversable (for_)
 import Data.Variant (Variant, inj)
 import Effect.Aff (Aff, Error, error, throwError)
+import Foreign.Object as Object
 import GraphQL ((!!>), (!#>), (!>), (.>), (:>), (?>))
 import GraphQL as GQL
+import GraphQL.DSL (withDefaultValue)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Type.Proxy (Proxy(..))
@@ -78,6 +82,12 @@ queryType =
     :> GQL.field "reflectStringOptional" GQL.string
       ?> GQL.optionalArg GQL.string (Proxy :: _ "argIn")
       !> (\{ argIn } _ -> pure $ fromMaybe "default" argIn)
+    :> GQL.field "reflectStringDefault" GQL.string
+      ?> GQL.arg GQL.string (Proxy :: _ "argIn") `withDefaultValue` "default"
+      !> (\{ argIn } _ -> pure argIn)
+    :> GQL.field "reflectStringDefaultOptional" GQL.string
+      ?> GQL.optionalArg GQL.string (Proxy :: _ "argIn") `withDefaultValue` pure "default"
+      !> (\{ argIn } _ -> pure $ fromMaybe "null" argIn)
     :> GQL.field "toggle" GQL.boolean
       ?> GQL.arg GQL.boolean (Proxy :: _ "on")
       !> (\{ on: onArg } _ -> pure $ not onArg)
@@ -235,6 +245,27 @@ executionSpec =
       let query = "query ($arg: String) { reflectStringOptional(argIn: $arg) }"
       res <- GQL.graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing ""
       stringify res `shouldEqual` """{"data":{"reflectStringOptional":"default"}}"""
+
+    it "uses the default value for arguments with default value if no value is given" $
+      testQuery
+        """{ reflectStringDefault }"""
+        """{"data":{"reflectStringDefault":"default"}}"""
+
+    it "throws an error for null values provided for non-nullable arguments with default" do
+      let queries =
+            [ "{ reflectStringDefault(argIn: null) }"
+            , "query ($arg: String) { reflectStringDefault(argIn: $arg) }"
+            ]
+      for_ queries \query -> affFromEither do
+        res <- GQL.graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing ""
+        errorsArray <- note (error "no error property in result JSON") $
+          Json.toObject res >>= Object.lookup "errors" >>= Json.toArray
+        length errorsArray `shouldEqual` 1
+
+    it "calls the resolver with Nothing for optional arguments if null is given" do
+      testQuery
+        """{ reflectStringDefaultOptional(argIn: null) }"""
+        """{"data":{"reflectStringDefaultOptional":"null"}}"""
 
     it "returns the right type name on union types" do
       testQuery

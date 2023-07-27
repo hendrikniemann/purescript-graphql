@@ -10,8 +10,9 @@ import Data.Either (Either(..), note)
 import Data.Enum (class Enum, enumFromTo)
 import Data.List (List, fromFoldable, find)
 import Data.Map (empty, insert, lookup)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
+import Data.String.CodeUnits (slice)
 import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Traversable (class Traversable, traverse)
 import Data.Tuple (Tuple(..))
@@ -20,7 +21,7 @@ import Effect.Exception (Error, error)
 import GraphQL.Execution.Result (Result(..))
 import GraphQL.Language.AST as AST
 import GraphQL.OptionallyParallel (class OptionallyParallel)
-import GraphQL.Type.Class (class InputType, class OutputType, ExecutionContext, input, introspect, output)
+import GraphQL.Type.Class (class InputType, class OutputType, ExecutionContext, input, introspect, output, showDefaultValue)
 import GraphQL.Type.EnumType (EnumType(..), EnumValue(..))
 import GraphQL.Type.InputObjectType (InputField(..), InputObjectType(..))
 import GraphQL.Type.Introspection.Datatypes as IntrospectionTypes
@@ -183,12 +184,35 @@ nullableListField name t =
 -- | ```
 arg :: forall t a n. InputType t => IsSymbol n => t a -> Proxy n -> Tuple (Proxy n) (Argument a)
 arg t _name =
-    Tuple (Proxy :: _ n) $
-      Argument
-        { description: Nothing
-        , resolveValue: input t
-        , typeIntrospection: \_ -> introspect t
-        }
+  Tuple (Proxy :: _ n) $
+    Argument
+      { description: Nothing
+      , resolveValue: input t
+      , typeIntrospection: \_ -> introspect t
+      , defaultValue: Nothing
+      , showDefaultValue: showDefaultValue t
+      }
+
+
+-- | Provide a default value for an argument. If the argument is not supplied or the supplied value
+-- | is `null` the default value is used instead. The default value is also returned in the
+-- | introspection.
+withDefaultValue :: forall n a. IsSymbol n => Tuple (Proxy n) (Argument a) -> a -> Tuple (Proxy n) (Argument a)
+withDefaultValue (Tuple name (Argument config)) val =
+  Tuple name $
+    Argument
+      { description: config.description
+      , defaultValue: Just val
+      , resolveValue: resolveValue
+      , typeIntrospection: config.typeIntrospection
+      , showDefaultValue: config.showDefaultValue
+      }
+
+  where
+    -- If there is no input given, the default value is returned instead
+    resolveValue :: Maybe AST.ValueNode -> ExecutionContext -> Either String a
+    resolveValue Nothing _ = pure val
+    resolveValue node@(Just _) context = config.resolveValue node context
 
 
 -- | Create a tuple with a given name and a plain argument of the given type, that is optional.
@@ -220,6 +244,8 @@ optionalArg t _name =
         { description: Nothing
         , resolveValue
         , typeIntrospection: \_ -> introspect t
+        , defaultValue: Nothing
+        , showDefaultValue: maybe "null" (showDefaultValue t)
         }
     where
       -- I am not really happy with this function and it is a bit of a hack:
@@ -243,6 +269,7 @@ inputObjectType name = InputObjectType \_ ->
   , description: Nothing
   , fieldIntrospection: []
   , input: \_ _ -> Right {}
+  , showDefaultValue: \_ -> "{}"
   }
 
 
@@ -260,6 +287,7 @@ inputField inputType label = InputField
           }
         }
   , input: input inputType
+  , showDefaultValue: showDefaultValue inputType
   }
 
 
@@ -284,6 +312,7 @@ optionalInputField inputType label = InputField
       Nothing -> Right Nothing
       Just AST.NullValueNode -> Right Nothing
       Just _ -> Just <$> input inputType maybeValNode execContext
+  , showDefaultValue: maybe "null" (showDefaultValue inputType)
   }
 
 
@@ -501,6 +530,8 @@ withArgument :: forall m a arg n argsdold argsdnew argspold argspnew.
 withArgument (Field fieldConfig) (Tuple proxy argument) =
   Field $ fieldConfig { args = args', serialize = serialize', argumentIntrospections = intros' }
     where
+      argConfig = unwrap argument
+
       args' :: Record argsdnew
       args' = Record.insert proxy argument fieldConfig.args
 
@@ -518,9 +549,9 @@ withArgument (Field fieldConfig) (Tuple proxy argument) =
         (
           IntrospectionTypes.InputValueIntrospection
             { name: reflectSymbol proxy
-            , description: _.description $ unwrap argument
-            , type: _.typeIntrospection $ unwrap argument
-            , defaultValue: Nothing
+            , description: argConfig.description
+            , type: argConfig.typeIntrospection
+            , defaultValue: map argConfig.showDefaultValue argConfig.defaultValue
             }
         )
 
@@ -661,7 +692,19 @@ withInputField (InputObjectType objConfig) (InputField inputConfig) = InputObjec
 
       fieldIntrospection = Array.cons inputConfig.introspection config.fieldIntrospection
 
-    in config { input = input, fieldIntrospection = fieldIntrospection }
+      showDefaultValue' :: { | r2 } -> String
+      showDefaultValue' defaultValue =
+        let
+          fieldDefaultValue = Record.get fieldLabel defaultValue
+          fieldDefaultValueString = inputConfig.showDefaultValue fieldDefaultValue
+          existingValue = config.showDefaultValue $ Record.delete fieldLabel defaultValue
+          keyValueString = fieldName <> ": " <> fieldDefaultValueString
+        in
+          case slice 0 (-1) existingValue of
+            "{" -> "{" <> keyValueString <> "}"
+            other -> other <> ", " <> keyValueString <> "}"
+
+    in config { input = input, fieldIntrospection = fieldIntrospection, showDefaultValue = showDefaultValue' }
   )
 
 

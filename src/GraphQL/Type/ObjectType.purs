@@ -128,6 +128,8 @@ newtype Argument a =
     { description :: Maybe String
     , typeIntrospection :: Unit -> IntrospectionTypes.TypeIntrospection
     , resolveValue :: Maybe AST.ValueNode -> ExecutionContext -> Either String a
+    , defaultValue :: Maybe a
+    , showDefaultValue :: a -> String
     }
 
 

@@ -68,6 +68,11 @@ instance inputTypeEnumType :: InputType EnumType where
 
   input _ _ _ = Left "Missing value for required argument."
 
+  showDefaultValue (EnumType config) value =
+    case find (\(EnumValue { isValue }) -> isValue value) config.values of
+      Nothing -> "Unknown"
+      Just (EnumValue val) -> val.name
+
 
 instance outputTypeEnumType :: MonadError Error m => OutputType m EnumType where
   output :: forall a. EnumType a -> Maybe AST.SelectionSetNode -> ExecutionContext -> m a -> m Result

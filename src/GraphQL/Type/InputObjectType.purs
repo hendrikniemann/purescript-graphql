@@ -17,6 +17,7 @@ newtype InputObjectType a = InputObjectType (Unit ->
   , description :: Maybe String
   , fieldIntrospection :: Array IntrospectionTypes.InputValueIntrospection
   , input :: Maybe AST.ValueNode -> ExecutionContext -> Either String a
+  , showDefaultValue :: a -> String
   }
 )
 
@@ -35,15 +36,18 @@ instance graphqlTypeInputObjectType :: GraphQLType InputObjectType where
 
 instance inputTypeInputObjectType :: InputType InputObjectType where
   input (InputObjectType config) = (config unit).input
+  showDefaultValue (InputObjectType config) = (config unit).showDefaultValue
 
 
 instance lazyInputObjectType :: Lazy (InputObjectType a) where
   defer fn = InputObjectType $ \_ -> unwrap (fn unit) unit
 
 
+newtype InputField :: forall k. k -> Type -> Type
 newtype InputField l a = InputField
   { name :: Proxy l
   , required :: Boolean
   , introspection :: IntrospectionTypes.InputValueIntrospection
   , input :: Maybe AST.ValueNode -> ExecutionContext -> Either String a
+  , showDefaultValue :: a -> String
   }

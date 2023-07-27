@@ -6,14 +6,14 @@ module GraphQL.Type.ScalarType
 import Prelude
 
 import Control.Monad.Error.Class (class MonadError)
-import Data.Argonaut (Json)
+import Data.Argonaut (Json, stringify)
 import Data.Either (Either(..), note)
 import Data.Map (lookup)
 import Data.Maybe (Maybe(..))
 import Effect.Exception (Error)
 import GraphQL.Execution.Result (Result(..))
 import GraphQL.Language.AST as AST
-import GraphQL.Type.Class (class GraphQLType, class OutputType, class InputType)
+import GraphQL.Type.Class (class GraphQLType, class InputType, class OutputType)
 import GraphQL.Type.Introspection.Datatypes (TypeIntrospection(..))
 
 
@@ -48,6 +48,8 @@ instance inputTypeScalarType :: InputType ScalarType where
       config.parseValue json
     _ -> config.parseLiteral node
   input _ Nothing _ = Left "Must provide value for required scalar."
+
+  showDefaultValue (ScalarType config) = config.serialize >>> stringify
 
 
 instance outputTypeScalarType :: (MonadError Error m) => OutputType m ScalarType where
