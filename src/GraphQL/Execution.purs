@@ -16,7 +16,6 @@ import GraphQL.OptionallyParallel (class OptionallyParallel)
 import GraphQL.Type (ObjectType, Schema(..), ExecutionContext, output, introspect)
 import GraphQL.Type.Introspection.Datatypes (SchemaIntrospection(..), TypeIntrospection)
 import GraphQL.Type.Introspection.Util (findTypeByName)
-import Type.Proxy (Proxy(..))
 
 
 -- | This function is mostly used internally. If you just want to execute a GraphQL query you should
@@ -60,7 +59,7 @@ execute (DocumentNode { definitions }) (Schema s) variables operation root = do
           :> field "__schema" (schemaType :: ObjectType m SchemaIntrospection)
             !#> const schemaIntrospection
           :> nullableField "__type" (typeType :: ObjectType m TypeIntrospection)
-            ?> arg Scalar.string (Proxy :: _ "name")
+            ?> arg @"name" Scalar.string
             !> ( \args _ -> pure $ findTypeByName args.name schemaIntrospection )
       in
         output metaQuery (Just selectionSet) variables root

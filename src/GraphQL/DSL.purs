@@ -179,11 +179,11 @@ nullableListField name t =
 -- | ```purescript
 -- | objectType "Query"
 -- |   :> field "hello" Scalar.string
--- |     ?> arg Scalar.string (Proxy :: _ "name")
+-- |     ?> arg @"name" Scalar.string
 -- |     !> \{ name } parent -> pure $ "Hello " <> name
 -- | ```
-arg :: forall t a n. InputType t => IsSymbol n => t a -> Proxy n -> Tuple (Proxy n) (Argument a)
-arg t _name =
+arg :: forall t a @n. InputType t => IsSymbol n => t a -> Tuple (Proxy n) (Argument a)
+arg t =
   Tuple (Proxy :: _ n) $
     Argument
       { description: Nothing
@@ -232,13 +232,12 @@ withDefaultValue (Tuple name (Argument config)) val =
 -- |     )
 -- | ```
 optionalArg ::
-  forall t a n.
+  forall t a @n.
   InputType t =>
   IsSymbol n =>
   t a ->
-  Proxy n ->
   Tuple (Proxy n) (Argument (Maybe a))
-optionalArg t _name =
+optionalArg t =
     Tuple (Proxy :: _ n) $
       Argument
         { description: Nothing
@@ -273,13 +272,13 @@ inputObjectType name = InputObjectType \_ ->
   }
 
 
-inputField :: forall t l a. IsSymbol l => InputType t => t a -> Proxy l -> InputField l a
-inputField inputType label = InputField
-  { name: label
+inputField :: forall t @l a. IsSymbol l => InputType t => t a -> InputField l a
+inputField inputType = InputField
+  { name: (Proxy :: _ l)
   , required: true
   , introspection:
       IntrospectionTypes.InputValueIntrospection
-        { name: reflectSymbol label
+        { name: reflectSymbol (Proxy :: _ l)
         , description: Nothing
         , defaultValue: Nothing
         , type: \_ -> IntrospectionTypes.NonNullTypeIntrospection

@@ -66,7 +66,7 @@ queryType =
       !> (\_ p -> pure $ "Hello " <> p <> "!")
     :> GQL.field "greet" GQL.string
       .> "A field that takes a name and responds with a presonalized greeting."
-      ?> GQL.arg GQL.string (Proxy :: Proxy "name")
+      ?> GQL.arg @"name" GQL.string
       !> (\{ name } _ -> pure $ "Greetings " <> name <> "!")
     :> GQL.field "test" GQL.int
       !#> const 42
@@ -77,24 +77,24 @@ queryType =
     :> GQL.nullableField "nullable" GQL.float
       !#> (const Nothing)
     :> GQL.field "reflect" GQL.string
-      ?> GQL.arg userLevelType (Proxy :: _ "argIn")
+      ?> GQL.arg @"argIn" userLevelType
       !> (\{ argIn } _ -> pure $ show argIn)
     :> GQL.field "reflectStringOptional" GQL.string
-      ?> GQL.optionalArg GQL.string (Proxy :: _ "argIn")
+      ?> GQL.optionalArg @"argIn" GQL.string
       !> (\{ argIn } _ -> pure $ fromMaybe "default" argIn)
     :> GQL.field "reflectStringDefault" GQL.string
-      ?> GQL.arg GQL.string (Proxy :: _ "argIn") `withDefaultValue` "default"
+      ?> GQL.arg @"argIn" GQL.string `withDefaultValue` "default"
       !> (\{ argIn } _ -> pure argIn)
     :> GQL.field "reflectStringDefaultOptional" GQL.string
-      ?> GQL.optionalArg GQL.string (Proxy :: _ "argIn") `withDefaultValue` pure "default"
+      ?> GQL.optionalArg @"argIn" GQL.string `withDefaultValue` pure "default"
       !> (\{ argIn } _ -> pure $ fromMaybe "null" argIn)
     :> GQL.field "toggle" GQL.boolean
-      ?> GQL.arg GQL.boolean (Proxy :: _ "on")
+      ?> GQL.arg @"on" GQL.boolean
       !> (\{ on: onArg } _ -> pure $ not onArg)
     :> GQL.nullableField "fail" GQL.boolean
       !!> (\_ -> throwError $ error "Always fails at runtime.")
     :> GQL.field "unionField" exampleUnionType
-      ?> GQL.arg GQL.string (Proxy :: _ "type")
+      ?> GQL.arg @"type" GQL.string
       !> resolveUnion
 
 
