@@ -34,8 +34,8 @@ type Todo =
 We start with an empty object type by giving it a name:
 
 ```purescript
-todoType :: GQL.ObjectType Context Todo
-todoType = GQL.objectType "Todo"
+todoType :: GraphQL.ObjectType Context Todo
+todoType = GraphQL.objectType "Todo"
 ```
 
 In the type signature, we define the context in which our GraphQL operations are executed.
@@ -44,9 +44,39 @@ Obviously, if we want to run side effects, we need an appropriate monad.
 I recommend to create a fitting monad transformer stack and exporting the type to your object types.
 For now we can use `Effect`, which allows us to run simple effects like logging.
 
-The second type
+The second type is the root value (or sometimes called parent value) type.
+In this case, we want to build an object type for the `Todo` type above.
+Object types don't contain any values themselves, they expose subfields that can be selected by the API consumer.
+Their purpose is to group values in a single structure (in PureScript often referred to as Sum Types).
+An object type without any fields is not of much use and in fact it is forbidden in GraphQL.
+An object type must at least have one field.
+
+We can define fields on object types by using the `withField` function.
 
 ```purescript
-todoType :: GQL.ObjectType Effect Todo
-todoType = GQL.objectType "Todo"
+todoType :: GraphQL.ObjectType Effect Todo
+todoType =
+  GraphQL.withField
+    (GraphQL.objectType "Todo")
+    (GraphQL.field "id" GraphQL.id)
+
+-- or in infix notation
+todoType :: GraphQL.ObjectType Effect Todo
+todoType =
+  GraphQL.objectType "Todo" `GraphQL.withField` GraphQL.field "id" GraphQL.id
+
+-- or even better with the DSL operator imported from GraphQL
+todoType :: GraphQL.ObjectType Effect Todo
+todoType = GraphQL.objectType "Todo"
+  .> GraphQL.field "id" GraphQL.id
+```
+
+We can add descriptions to objects and fields.
+These descriptions are available via _introspection_ a way to query an API about its structure and data offerings.
+
+```purescript
+todoType :: GraphQL.ObjectType Effect Todo
+todoType = GraphQL.objectType "Todo"
+  :> "A todo holds information about a task and its completion status"
+  .> GraphQL.field "id" GraphQL.id
 ```

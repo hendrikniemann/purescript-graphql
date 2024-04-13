@@ -24,10 +24,10 @@ schema = GraphQL.Schema { query: queryType, mutation: Nothing }
 queryType :: GraphQL.ObjectType (ReaderT String Effect) Unit
 queryType =
   GraphQL.objectType "Query"
-    .> "The root query type."
-    :> GraphQL.field "hello" GraphQL.string
+    :> "The root query type."
+    .> GraphQL.field "hello" GraphQL.string
       ?> GraphQL.arg @"name" GraphQL.string
-      .> "A simple field that returns a greeting."
+      :> "A simple field that returns a greeting."
       !> (\{ name } _ -> pure $ "Hello, " <> name <> "!")
 
 -- | A spec that tests that the example in the README actually works

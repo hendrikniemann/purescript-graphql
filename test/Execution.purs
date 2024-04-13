@@ -19,7 +19,7 @@ import Data.Variant (Variant, inj)
 import Effect.Aff (Aff, Error, error, throwError)
 import Foreign.Object as Object
 import GraphQL ((!!>), (!#>), (!>), (.>), (:>), (?>))
-import GraphQL as GQL
+import GraphQL as GraphQL
 import GraphQL.DSL (withDefaultValue)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -53,48 +53,48 @@ instance showUserLevel :: Show UserLevel where
   show NormalUser = "USER"
 
 
-testSchema :: GQL.Schema (Either Error) String
-testSchema = GQL.Schema { query: queryType, mutation: Nothing }
+testSchema :: GraphQL.Schema (Either Error) String
+testSchema = GraphQL.Schema { query: queryType, mutation: Nothing }
 
 
-queryType :: GQL.ObjectType (Either Error) String
+queryType :: GraphQL.ObjectType (Either Error) String
 queryType =
-  GQL.objectType "Query"
-    .> "The root query type"
-    :> GQL.field "hello" GQL.string
-      .> "A simple test field that connects the root string with a greeting."
+  GraphQL.objectType "Query"
+    :> "The root query type"
+    .> GraphQL.field "hello" GraphQL.string
+      :> "A simple test field that connects the root string with a greeting."
       !> (\_ p -> pure $ "Hello " <> p <> "!")
-    :> GQL.field "greet" GQL.string
-      .> "A field that takes a name and responds with a presonalized greeting."
-      ?> GQL.arg @"name" GQL.string
+    .> GraphQL.field "greet" GraphQL.string
+      :> "A field that takes a name and responds with a presonalized greeting."
+      ?> GraphQL.arg @"name" GraphQL.string
       !> (\{ name } _ -> pure $ "Greetings " <> name <> "!")
-    :> GQL.field "test" GQL.int
+    .> GraphQL.field "test" GraphQL.int
       !#> const 42
-    :> GQL.field "nested" userType
+    .> GraphQL.field "nested" userType
       !#> (const $ User { id: "user1", name: "Hendrik", age: 25, level: NormalUser })
-    :> GQL.listField "someList" GQL.string
+    .> GraphQL.listField "someList" GraphQL.string
       !#> (const ["This", "is", "a", "little", "list"])
-    :> GQL.nullableField "nullable" GQL.float
+    .> GraphQL.nullableField "nullable" GraphQL.float
       !#> (const Nothing)
-    :> GQL.field "reflect" GQL.string
-      ?> GQL.arg @"argIn" userLevelType
+    .> GraphQL.field "reflect" GraphQL.string
+      ?> GraphQL.arg @"argIn" userLevelType
       !> (\{ argIn } _ -> pure $ show argIn)
-    :> GQL.field "reflectStringOptional" GQL.string
-      ?> GQL.optionalArg @"argIn" GQL.string
+    .> GraphQL.field "reflectStringOptional" GraphQL.string
+      ?> GraphQL.optionalArg @"argIn" GraphQL.string
       !> (\{ argIn } _ -> pure $ fromMaybe "default" argIn)
-    :> GQL.field "reflectStringDefault" GQL.string
-      ?> GQL.arg @"argIn" GQL.string `withDefaultValue` "default"
+    .> GraphQL.field "reflectStringDefault" GraphQL.string
+      ?> GraphQL.arg @"argIn" GraphQL.string `withDefaultValue` "default"
       !> (\{ argIn } _ -> pure argIn)
-    :> GQL.field "reflectStringDefaultOptional" GQL.string
-      ?> GQL.optionalArg @"argIn" GQL.string `withDefaultValue` pure "default"
+    .> GraphQL.field "reflectStringDefaultOptional" GraphQL.string
+      ?> GraphQL.optionalArg @"argIn" GraphQL.string `withDefaultValue` pure "default"
       !> (\{ argIn } _ -> pure $ fromMaybe "null" argIn)
-    :> GQL.field "toggle" GQL.boolean
-      ?> GQL.arg @"on" GQL.boolean
+    .> GraphQL.field "toggle" GraphQL.boolean
+      ?> GraphQL.arg @"on" GraphQL.boolean
       !> (\{ on: onArg } _ -> pure $ not onArg)
-    :> GQL.nullableField "fail" GQL.boolean
+    .> GraphQL.nullableField "fail" GraphQL.boolean
       !!> (\_ -> throwError $ error "Always fails at runtime.")
-    :> GQL.field "unionField" exampleUnionType
-      ?> GQL.arg @"type" GQL.string
+    .> GraphQL.field "unionField" exampleUnionType
+      ?> GraphQL.arg @"type" GraphQL.string
       !> resolveUnion
 
 
@@ -108,42 +108,42 @@ resolveUnion args _ = case args.type of
 type ExampleVariant = Variant (user :: User, test :: String)
 
 
-exampleUnionType :: GQL.UnionType (Either Error) ExampleVariant
-exampleUnionType = GQL.union "ExampleUnion" { user: userType, test: testType }
+exampleUnionType :: GraphQL.UnionType (Either Error) ExampleVariant
+exampleUnionType = GraphQL.union "ExampleUnion" { user: userType, test: testType }
 
 
-testType :: GQL.ObjectType (Either Error) String
+testType :: GraphQL.ObjectType (Either Error) String
 testType =
-  GQL.objectType "Test"
-    .> "A test type"
-    :> GQL.field "test" GQL.string
+  GraphQL.objectType "Test"
+    :> "A test type"
+    .> GraphQL.field "test" GraphQL.string
       !#> const "test"
 
 
 
-userType :: GQL.ObjectType (Either Error) User
+userType :: GraphQL.ObjectType (Either Error) User
 userType =
-  GQL.objectType "User"
-    .> "A type for all users in the database"
-    :> GQL.field "id" GQL.string
+  GraphQL.objectType "User"
+    :> "A type for all users in the database"
+    .> GraphQL.field "id" GraphQL.string
       !#> unwrap >>> _.id
-    :> GQL.field "name" GQL.string
+    .> GraphQL.field "name" GraphQL.string
       !#> unwrap >>> _.name
-    :> GQL.field "age" GQL.int
+    .> GraphQL.field "age" GraphQL.int
       !#> unwrap >>> _.age
-    :> GQL.field "level" userLevelType
+    .> GraphQL.field "level" userLevelType
       !#> unwrap >>> _.level
 
 
-userLevelType :: GQL.EnumType UserLevel
+userLevelType :: GraphQL.EnumType UserLevel
 userLevelType =
-  GQL.enumType "UserLevel"
-    .> "An enum type to denominate the user level."
+  GraphQL.enumType "UserLevel"
+    :> "An enum type to denominate the user level."
 
 
 testQuery :: String -> String -> Aff Unit
 testQuery query expected =
-  case GQL.graphql testSchema query Map.empty Nothing "Hendrik" of
+  case GraphQL.graphql testSchema query Map.empty Nothing "Hendrik" of
   Right res -> stringify res `shouldEqual` expected
 
   Left message -> fail $ show message
@@ -243,7 +243,7 @@ executionSpec =
 
     it "accepts null as a variable value for an optional parameter" $ affFromEither do
       let query = "query ($arg: String) { reflectStringOptional(argIn: $arg) }"
-      res <- GQL.graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing ""
+      res <- GraphQL.graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing ""
       stringify res `shouldEqual` """{"data":{"reflectStringOptional":"default"}}"""
 
     it "uses the default value for arguments with default value if no value is given" $
@@ -257,7 +257,7 @@ executionSpec =
             , "query ($arg: String) { reflectStringDefault(argIn: $arg) }"
             ]
       for_ queries \query -> affFromEither do
-        res <- GQL.graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing ""
+        res <- GraphQL.graphql testSchema query (Map.insert "arg" Json.jsonNull Map.empty) Nothing ""
         errorsArray <- note (error "no error property in result JSON") $
           Json.toObject res >>= Object.lookup "errors" >>= Json.toArray
         length errorsArray `shouldEqual` 1

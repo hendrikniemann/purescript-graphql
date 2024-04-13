@@ -79,16 +79,16 @@ They are used to build object types.
 
 ```purescript
 import Data.Maybe (Maybe(..))
-import GraphQL.Type ((:>), (!>))
-import GraphQL.Type as GQL
+import GraphQL.Type ((.>), (!>))
+import GraphQL.Type as GraphQL
 import GraphQL.Type.Scalar as Scalar
 ```
 
 Now, let's construct a simple schema:
 
 ```purescript
-schema :: GQL.Schema Effect Unit
-schema = GQL.Schema { query: ?query, mutation: Nothing }
+schema :: GraphQL.Schema Effect Unit
+schema = GraphQL.Schema { query: ?query, mutation: Nothing }
 ```
 
 `Schema` takes two types:
@@ -111,8 +111,8 @@ Now you should see a type error, telling us about the type of the typed hole:
 Let's build an object type that fits into the typed hole!
 
 ```purescript
-queryType :: GQL.ObjectType Effect Unit
-queryType = GQL.objectType "Query"
+queryType :: GraphQL.ObjectType Effect Unit
+queryType = GraphQL.objectType "Query"
 ```
 
 Great, we now have a simple object type without fields.
@@ -124,8 +124,8 @@ As we are returning a string from the _hello_ field, we chose the `string` scala
 `GraphQL.Type.Scalar` contains all the standards scalars that the [GraphQL specification](http://spec.graphql.org/June2018/#sec-Scalars) defines.
 
 ```purescript
-helloField :: GQL.Field Effect String () ()
-helloField = GQL.field "hello" Scalar.string
+helloField :: GraphQL.Field Effect String () ()
+helloField = GraphQL.field "hello" Scalar.string
 ```
 
 If we would add the field to the query type, we would encounter a type error because our field expects a string as the root value.
@@ -134,31 +134,31 @@ A field without a resolver just passes through the parent value.
 Let's add a resolver that takes a unit parent value and returns the string "world" inside of the effect monad.
 
 ```purescript
-helloField :: GQL.Field Effect Unit () ()
+helloField :: GraphQL.Field Effect Unit () ()
 helloField =
-  GQL.withResolver
-    (GQL.field "hello" Scalar.string)
+  GraphQL.withResolver
+    (GraphQL.field "hello" Scalar.string)
     (\args parent -> pure "world")
 ```
 
 ...and add the field to the query type...
 
 ```purescript
-queryType :: GQL.ObjectType Effect Unit
-queryType = GQL.withField (GQL.objectType "Query") helloField
+queryType :: GraphQL.ObjectType Effect Unit
+queryType = GraphQL.withField (GraphQL.objectType "Query") helloField
 ```
 
 Now, admittedly it is not the prettiest code to look at.
 GraphQL APIs often consist of hundreds of types and thousands of fields.
-Using the operators `:>` for `withField` and `!>` for `withResolver` we can shorten our code drastically and make inlining of the field more readable.
+Using the operators `.>` for `withField` and `!>` for `withResolver` we can shorten our code drastically and make inlining of the field more readable.
 
 ```purescript
-schema :: GQL.Schema Effect Unit
-schema = GQL.Schema { query: queryType, mutation: Nothing }
+schema :: GraphQL.Schema Effect Unit
+schema = GraphQL.Schema { query: queryType, mutation: Nothing }
 
-queryType :: GQL.ObjectType Effect Unit
-queryType = GQL.objectType "Query"
-  :> GQL.field "hello" Scalar.string
+queryType :: GraphQL.ObjectType Effect Unit
+queryType = GraphQL.objectType "Query"
+  .> GraphQL.field "hello" Scalar.string
     !> (\args parent -> pure "world")
 ```
 

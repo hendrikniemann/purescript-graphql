@@ -9,7 +9,7 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Effect.Exception (Error, error)
 import GraphQL.Builtin.Introspection (schemaType, typeType)
 import GraphQL.Builtin.Scalar as Scalar
-import GraphQL.DSL (arg, field, nullableField, (!#>), (:>), (?>), (!>))
+import GraphQL.DSL (arg, field, nullableField, (!#>), (.>), (?>), (!>))
 import GraphQL.Execution.Result (serializeResult)
 import GraphQL.Language.AST (DefinitionNode(..), DocumentNode(..), NameNode(..), OperationTypeNode(..))
 import GraphQL.OptionallyParallel (class OptionallyParallel)
@@ -56,9 +56,9 @@ execute (DocumentNode { definitions }) (Schema s) variables operation root = do
             , mutationType: map introspect s.mutation
             }
         metaQuery = s.query
-          :> field "__schema" (schemaType :: ObjectType m SchemaIntrospection)
+          .> field "__schema" (schemaType :: ObjectType m SchemaIntrospection)
             !#> const schemaIntrospection
-          :> nullableField "__type" (typeType :: ObjectType m TypeIntrospection)
+          .> nullableField "__type" (typeType :: ObjectType m TypeIntrospection)
             ?> arg @"name" Scalar.string
             !> ( \args _ -> pure $ findTypeByName args.name schemaIntrospection )
       in

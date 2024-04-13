@@ -322,15 +322,15 @@ optionalInputField inputType label = InputField
 -- | *Example:*
 -- | ```purescript
 -- | objectType "User"
--- |   .> "A user of the product."
--- |   :> field "id" Scalar.id
--- |     .> "A unique identifier for this user."
+-- |   :> "A user of the product."
+-- |   .> field "id" Scalar.id
+-- |     :> "A unique identifier for this user."
 -- | ```
 class Describe a where
   describe :: a -> String -> a
 
 
-infixl 8 describe as .>
+infixl 8 describe as :>
 
 
 instance describeObjectType :: Describe (ObjectType m a) where
@@ -434,7 +434,7 @@ withField (ObjectType objectConfigFn) fld@(
 -- | objectType "Query"
 -- |   :> field "hello" Scalar.string
 -- | ```
-infixl 5 withField as :>
+infixl 5 withField as .>
 
 
 -- | A type class that contrains the relationship between defined arguments and the _argument_
