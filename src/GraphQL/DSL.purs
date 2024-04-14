@@ -27,6 +27,7 @@ import GraphQL.Type.InputObjectType (InputField(..), InputObjectType(..))
 import GraphQL.Type.Introspection.Datatypes as IntrospectionTypes
 import GraphQL.Type.ObjectType (Argument(..), ExecutableField(..), Field(..), ObjectType(..))
 import GraphQL.Type.UnionType (UnionType(..), filterSelectionSet)
+import Prim.Row as PrimRow
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Type.Row as Row
@@ -51,20 +52,27 @@ objectType name =
   in
     ObjectType (\_ -> { name, fields: empty, introspection })
 
-
+-- Field m parent outputtype result name argsd argsp
 -- | Create a new field for an object type. This function is typically used together with the
 -- | `:>` operator that automatically converts the field into an executable field.
-field :: forall m t a @n. OutputType m t => MonadError Error m => IsSymbol n =>  t a -> Field m a n () ()
+field :: forall m outputtype result r' r @name.
+  OutputType m outputtype =>
+  MonadError Error m =>
+  IsSymbol name =>
+  PrimRow.Cons name result r' r =>
+  outputtype result ->
+  Field m (Record r) outputtype result name () ()
 field t =
   Field
     { name: (Proxy :: _ n)
     , description: Nothing
     , args: {}
     , serialize
+    , outputType: t
     , argumentIntrospections: []
     , typeIntrospection }
       where
-        serialize (AST.FieldNode node) execCtx _ val = output t node.selectionSet execCtx (pure val)
+        serialize (AST.FieldNode node) execCtx _ val = output t node.selectionSet execCtx (pure (Record.get (Proxy :: _ n) val))
         serialize _ _ _ _ = pure $ ResultError "Obtained non FieldNode for field serialisation."
 
         typeIntrospection _ =
@@ -73,16 +81,17 @@ field t =
 
 -- | Create a new field for an object type that is a list. You can return any `Traversable` from the
 -- | resolver.
-listField :: forall m f t a @n.
+listField :: forall m outputtype result r' r f @name.
+  OutputType m outputtype =>
   MonadError Error m =>
   Traversable f =>
-  OutputType m t =>
-  IsSymbol n =>
-  t a ->
-  Field m (f a) n () ()
+  IsSymbol name =>
+  PrimRow.Cons name (f result) r' r =>
+  outputtype result ->
+  Field m (Record r) outputtype (f result) name () ()
 listField t =
   Field
-    { name: (Proxy :: _ n)
+    { name: (Proxy :: _ name)
     , description: Nothing
     , args: {}
     , serialize
@@ -104,15 +113,16 @@ listField t =
 
 -- | Create a new field for an object type that is optional (i.e. it can be null). The resolver
 -- | must now return a `Maybe`.
-nullableField :: forall m t a @n.
+nullableField :: forall m outputtype result r' r @name.
+  OutputType m outputtype =>
   MonadError Error m =>
-  OutputType m t =>
-  IsSymbol n =>
-  t a ->
-  Field m (Maybe a) n () ()
+  IsSymbol name =>
+  PrimRow.Cons name (Maybe result) r' r =>
+  outputtype result ->
+  Field m (Record r) outputtype (Maybe result) name () ()
 nullableField t =
   Field
-    { name: (Proxy :: _ n)
+    { name: (Proxy :: _ name)
     , description: Nothing
     , args: {}
     , serialize
@@ -135,19 +145,21 @@ nullableField t =
 
 -- | Create a new field for an object type that is optional (i.e. it can be null) and returns a
 -- | list. The resolver must now return a `Maybe`.
-nullableListField :: forall m f t a @n.
+nullableListField :: forall m outputtype result r' r f @name.
+  OutputType m outputtype =>
   MonadError Error m =>
   Traversable f =>
-  OutputType m t =>
-  IsSymbol n =>
-  t a ->
-  Field m (Maybe (f a)) n () ()
+  IsSymbol name =>
+  PrimRow.Cons name (Maybe (f result)) r' r =>
+  outputtype result ->
+  Field m (Record r) outputtype (Maybe (f result)) name () ()
 nullableListField t =
   Field
-    { name: (Proxy :: _ n)
+    { name: (Proxy :: _ name)
     , description: Nothing
     , args: {}
     , serialize
+    , outputType: t
     , argumentIntrospections: []
     , typeIntrospection }
       where
@@ -346,7 +358,7 @@ instance withDescriptionObjectType :: WithDescription (ObjectType m a) where
           config { introspection = updateDescription config.introspection }
 
 
-instance withDescriptionField :: WithDescription (Field m a n argsd argsp) where
+instance withDescriptionField :: WithDescription (Field m parent outputtype result name argsd argsp) where
   withDescription (Field config) s = Field (config { description = Just s })
 
 
@@ -516,17 +528,17 @@ else instance argsFromRowsNil :: ArgsFromRows RL.Nil RL.Nil argsd argsp where
 -- | The `withArgument` function adds an argument to a field. The argument can then be used in
 -- | resolvers that are added to the field. The old resolver of the field is still valid until it is
 -- | overwritten by `withResolver.`
-withArgument :: forall m a arg n s argsdold argsdnew argspold argspnew.
-  IsSymbol n =>
-  Row.Cons n (Argument arg) argsdold argsdnew =>
-  Row.Cons n arg argspold argspnew =>
-  Row.Lacks n argsdold =>
-  Row.Lacks n argspold =>
+withArgument :: forall m parent outputtype result fieldName arg argName argsdold argsdnew argspold argspnew.
+  IsSymbol argName =>
+  Row.Cons argName (Argument arg) argsdold argsdnew =>
+  Row.Cons argName arg argspold argspnew =>
+  Row.Lacks argName argsdold =>
+  Row.Lacks argName argspold =>
   ArgsDefToArgsParam argsdold argspold =>
   ArgsDefToArgsParam argsdnew argspnew =>
-  Field m a s argsdold argspold ->
-  Tuple (Proxy n) (Argument arg) ->
-  Field m a s argsdnew argspnew
+  Field m parent outputtype result fieldName argsdold argspold ->
+  Tuple (Proxy argName) (Argument arg) ->
+  Field m parent outputtype result fieldName argsdnew argspnew
 withArgument (Field fieldConfig) (Tuple proxy argument) =
   Field $ fieldConfig { args = args', serialize = serialize', argumentIntrospections = intros' }
     where
@@ -539,7 +551,7 @@ withArgument (Field fieldConfig) (Tuple proxy argument) =
         AST.SelectionNode ->
         ExecutionContext ->
         Record argspnew ->
-        a ->
+        parent ->
         m Result
       serialize' node variables argsnew val =
         fieldConfig.serialize node variables (Record.delete proxy argsnew) val
@@ -571,16 +583,19 @@ infixl 7 withArgument as ?>
 -- | The `withResolver` function adds a resolver to a field.
 -- |
 -- | _Note: When used multiple times on a field the resolvers are chained._
-withResolver :: forall m a b n argsd argsp.
+withResolver :: forall m parent newparent outputtype result name argsd argsp.
   MonadError Error m =>
-  Field m a n argsd argsp ->
-  (Record argsp -> b -> m a) ->
-  Field m b n argsd argsp
+  OutputType m outputtype =>
+  Field m parent outputtype result name argsd argsp ->
+  (Record argsp -> newparent -> m result) ->
+  Field m newparent outputtype result name argsd argsp
 withResolver (Field fieldConfig) resolver =
   Field $ fieldConfig { serialize = serialize }
     where
-      serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> b -> m Result
-      serialize node variables args = resolver args >=> fieldConfig.serialize node variables args
+      serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> newparent -> m Result
+      serialize (AST.FieldNode node) execCtx args val =
+        output fieldConfig.outputType node.selectionSet execCtx (resolver args val)
+      serialize _ _ _ _ = pure $ ResultError "Obtained non FieldNode for field serialisation."
 
 
 -- | Add a resolver to a field that receives the arguments in a record and the parent value.
@@ -596,11 +611,12 @@ infixl 6 withResolver as !>
 
 -- | Add a resolver to a field that does not take the arguments. This is useful in the very common
 -- | case that your field has no arguments.
-withSimpleResolver :: forall m a b n.
+withSimpleResolver :: forall m parent newparent outputtype result name.
   MonadError Error m =>
-  Field m a n () () ->
-  (b -> m a) ->
-  Field m b n () ()
+  OutputType m outputtype =>
+  Field m parent outputtype result name () () ->
+  (newparent -> m result) ->
+  Field m newparent outputtype result name () ()
 withSimpleResolver fld resolver = withResolver fld (const resolver)
 
 
@@ -617,11 +633,12 @@ infixl 6 withSimpleResolver as !!>
 
 -- | Add a resolver that simply maps over the parent value. This is useful when you have a pure
 -- | resolver that does not run effects.
-withMappingResolver :: forall m a b n.
+withMappingResolver :: forall m parent newparent outputtype result name.
   MonadError Error m =>
-  Field m a n () () ->
-  (b -> a) ->
-  Field m b n () ()
+  OutputType m outputtype =>
+  Field m parent outputtype result name () () ->
+  (newparent -> result) ->
+  Field m newparent outputtype result name () ()
 withMappingResolver fld resolver = withSimpleResolver fld (resolver >>> pure)
 
 

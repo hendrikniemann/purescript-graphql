@@ -108,19 +108,20 @@ derive instance newtypeExecutableField :: Newtype (ExecutableField m a) _
 
 -- | Object types can have fields. Fields are constructed using the `field` function from this
 -- | module and added to object types using the `.>` operator.
-newtype Field :: forall k. (Type -> Type) -> Type -> k -> Row Type -> Row Type -> Type
-newtype Field m a n argsd argsp =
+newtype Field :: forall k. (Type -> Type) -> Type -> (Type -> Type) -> Type -> k -> Row Type -> Row Type -> Type
+newtype Field m parent outputtype result name argsd argsp =
   Field
-    { name :: Proxy n
+    { name :: Proxy name
+    , outputType :: outputtype result
     , description :: Maybe String
     , typeIntrospection :: Unit -> IntrospectionTypes.TypeIntrospection
     , argumentIntrospections :: Array IntrospectionTypes.InputValueIntrospection
     , args :: Record argsd
-    , serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> a -> m Result
+    , serialize :: AST.SelectionNode -> ExecutionContext -> Record argsp -> parent -> m Result
     }
 
 
-derive instance newtypeField :: Newtype (Field m a n argsd argsp) _
+derive instance newtypeField :: Newtype (Field m parent outputtype result name argsd argsp) _
 
 
 -- | Fields can have multiple arguments. Arguments are constructed using the `arg` function from
