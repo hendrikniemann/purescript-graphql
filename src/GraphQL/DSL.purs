@@ -315,7 +315,7 @@ optionalInputField inputType label = InputField
   }
 
 
--- | The describe type class is used to allow adding descriptions to various parts of a GraphQL
+-- | The withDescription type class is used to allow adding descriptions to various parts of a GraphQL
 -- | schema that can have a description. The `.>` operator can be used with the GraphQL object
 -- | type DSL to easily add descriptions in various places.
 -- |
@@ -326,15 +326,15 @@ optionalInputField inputType label = InputField
 -- |   .> field "id" Scalar.id
 -- |     :> "A unique identifier for this user."
 -- | ```
-class Describe a where
-  describe :: a -> String -> a
+class WithDescription a where
+  withDescription :: a -> String -> a
 
 
-infixl 8 describe as :>
+infixl 8 withDescription as :>
 
 
-instance describeObjectType :: Describe (ObjectType m a) where
-  describe (ObjectType configFn) s =
+instance withDescriptionObjectType :: WithDescription (ObjectType m a) where
+  withDescription (ObjectType configFn) s =
       ObjectType $ \_ ->
         let
           config = configFn unit
@@ -346,33 +346,33 @@ instance describeObjectType :: Describe (ObjectType m a) where
           config { introspection = updateDescription config.introspection }
 
 
-instance describeField :: Describe (Field m a argsd argsp) where
-  describe (Field config) s = Field (config { description = Just s })
+instance withDescriptionField :: WithDescription (Field m a argsd argsp) where
+  withDescription (Field config) s = Field (config { description = Just s })
 
 
-instance describeArgument :: Describe (Argument a) where
-  describe (Argument config) s = Argument (config { description = Just s })
+instance withDescriptionArgument :: WithDescription (Argument a) where
+  withDescription (Argument config) s = Argument (config { description = Just s })
 
 
-instance describeArgumentTuple :: Describe (Tuple s (Argument a)) where
-  describe (Tuple p (Argument config)) s = Tuple p (Argument (config { description = Just s }))
+instance withDescriptionArgumentTuple :: WithDescription (Tuple s (Argument a)) where
+  withDescription (Tuple p (Argument config)) s = Tuple p (Argument (config { description = Just s }))
 
 
-instance describeEnumType :: Describe (EnumType a) where
-  describe (EnumType config) s = EnumType ( config { description = Just s })
+instance withDescriptionEnumType :: WithDescription (EnumType a) where
+  withDescription (EnumType config) s = EnumType ( config { description = Just s })
 
 
-instance describeEnumValue :: Describe (EnumValue a) where
-  describe (EnumValue config) s = EnumValue ( config { description = Just s })
+instance withDescriptionEnumValue :: WithDescription (EnumValue a) where
+  withDescription (EnumValue config) s = EnumValue ( config { description = Just s })
 
 
-instance describeInputObjectType :: Describe (InputObjectType a) where
-  describe (InputObjectType configFn) s =
+instance withDescriptionInputObjectType :: WithDescription (InputObjectType a) where
+  withDescription (InputObjectType configFn) s =
     InputObjectType $ \_ -> (configFn unit) { description = Just s }
 
 
-instance describeInputField :: Describe (InputField s a) where
-  describe (InputField config) s =
+instance withDescriptionInputField :: WithDescription (InputField s a) where
+  withDescription (InputField config) s =
     InputField $ config { introspection = i }
       where
         { introspection: (IntrospectionTypes.InputValueIntrospection introspection)} = config

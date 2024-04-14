@@ -18,7 +18,7 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect.Exception (Error, error)
 import GraphQL.Builtin.Scalar (boolean, float, id, int, string) as Scalar
-import GraphQL.DSL (class ArgsDefToArgsParam, class ArgsFromRows, class Describe, class UnionDefinition, class UnionIntrospection, class UnionResolver, arg, argsFromDefinition, argsFromRows, describe, enumType, field, inputField, optionalInputField, inputObjectType, listField, nullableField, nullableListField, objectType, optionalArg, union, unionIntrospection, unionResolver, withArgument, withDefaultValue, withField, withInputField, withMappingResolver, withResolver, withSimpleResolver, (!!>), (!#>), (!>), (.>), (:>), (:?>), (?>)) as DSL
+import GraphQL.DSL (class ArgsDefToArgsParam, class ArgsFromRows, class WithDescription, class UnionDefinition, class UnionIntrospection, class UnionResolver, arg, argsFromDefinition, argsFromRows, withDescription, enumType, field, inputField, optionalInputField, inputObjectType, listField, nullableField, nullableListField, objectType, optionalArg, union, unionIntrospection, unionResolver, withArgument, withDefaultValue, withField, withInputField, withMappingResolver, withResolver, withSimpleResolver, (!!>), (!#>), (!>), (.>), (:>), (:?>), (?>)) as DSL
 import GraphQL.Execution (execute) as Execution
 import GraphQL.Language (parse) as Language
 import GraphQL.Language.AST as AST
