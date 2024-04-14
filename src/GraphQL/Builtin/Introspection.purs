@@ -24,24 +24,24 @@ schemaType = GraphQL.objectType "__Schema"
     types and directives on the server, as well as the entry points for query, mutation, and
     subscription operations.
   """
-  .> GraphQL.listField "types" (typeType :: GraphQL.ObjectType m TypeIntrospection)
+  .> GraphQL.listField @"types" (typeType :: GraphQL.ObjectType m TypeIntrospection)
     :> "A list of all types supported by this server."
     !#> collectTypes >>> fromFoldable
-  .> GraphQL.field "queryType" (typeType :: GraphQL.ObjectType m TypeIntrospection)
+  .> GraphQL.field @"queryType" (typeType :: GraphQL.ObjectType m TypeIntrospection)
     :> "The type that query operations will be rooted at."
     !#> unwrap >>> _.queryType
-  .> GraphQL.nullableField "mutationType" (typeType :: GraphQL.ObjectType m TypeIntrospection)
+  .> GraphQL.nullableField @"mutationType" (typeType :: GraphQL.ObjectType m TypeIntrospection)
     :> """
       If this server supports mutation, the type that mutation operations will be rooted at.
     """
     !#> unwrap >>> _.mutationType
-  .> GraphQL.nullableField "subscriptionType" (typeType :: GraphQL.ObjectType m TypeIntrospection)
+  .> GraphQL.nullableField @"subscriptionType" (typeType :: GraphQL.ObjectType m TypeIntrospection)
     :> """
       If this server supports subscriptons, the type that subscription operations will be rooted
       at.
     """
     !#> const Nothing
-  .> GraphQL.listField "directives" Scalar.string
+  .> GraphQL.listField @"directives" Scalar.string
     !#> const []
 
 
@@ -57,36 +57,36 @@ typeType = typeType'
       provide the fields they describe. Abstract types, Union and Interface, provide the Object
       types possible at runtime. List and NonNull types compose other types.
     """
-    .> GraphQL.field "kind" typeKindType
+    .> GraphQL.field @"kind" typeKindType
       !#> getTypeKind
-    .> GraphQL.nullableField "name" Scalar.string
+    .> GraphQL.nullableField @"name" Scalar.string
       !#> getName
-    .> GraphQL.nullableField "description" Scalar.string
+    .> GraphQL.nullableField @"description" Scalar.string
       !#> getDescription
-    .> GraphQL.nullableListField "fields" (defer \_ -> fieldType)
+    .> GraphQL.nullableListField @"fields" (defer \_ -> fieldType)
       !#> case _ of
             (ObjectTypeIntrospection { fields }) -> Just fields
             _ -> Nothing
     -- For spec compliance; this implementation does not support interfaces yet
-    .> GraphQL.nullableListField "interfaces" (defer \_ -> typeType')
+    .> GraphQL.nullableListField @"interfaces" (defer \_ -> typeType')
       !#> case _ of
             (ObjectTypeIntrospection _) -> Just []
             _ -> Nothing
     .> GraphQL.nullableListField
-          "possibleTypes"
+          @"possibleTypes"
           (defer \_ -> typeType')
       !#> case _ of
             (UnionTypeIntrospection { possibleTypes }) -> Just $ possibleTypes unit
             _ -> Nothing
-    .> GraphQL.nullableListField "enumValues" enumValueType
+    .> GraphQL.nullableListField @"enumValues" enumValueType
       !#> case _ of
             (EnumTypeIntrospection { enumValues }) -> Just enumValues
             _ -> Nothing
-    .> GraphQL.nullableListField "inputFields" (defer \_ -> inputValueType)
+    .> GraphQL.nullableListField @"inputFields" (defer \_ -> inputValueType)
       !#> case _ of
             (InputObjectTypeIntrospection { inputFields }) -> Just inputFields
             _ -> Nothing
-    .> GraphQL.nullableField "ofType" (defer \_ -> typeType')
+    .> GraphQL.nullableField @"ofType" (defer \_ -> typeType')
       !#> case _ of
             (ListTypeIntrospection { ofType }) -> Just (ofType unit)
             (NonNullTypeIntrospection { ofType }) -> Just (ofType unit)
@@ -102,17 +102,17 @@ typeType = typeType'
       Object and Interface types are described by a list of Fields, each of which has a name,
       potentially a list of arguments, and a return type.
     """
-    .> GraphQL.field "name" Scalar.string
+    .> GraphQL.field @"name" Scalar.string
       !#> unwrap >>> _.name
-    .> GraphQL.nullableField "description" Scalar.string
+    .> GraphQL.nullableField @"description" Scalar.string
       !#> unwrap >>> _.description
-    .> GraphQL.field "type" (defer \_ -> typeType')
+    .> GraphQL.field @"type" (defer \_ -> typeType')
       !#> unwrap >>> _.type >>> (_ $ unit)
-    .> GraphQL.listField "args" (defer \_ -> inputValueType)
+    .> GraphQL.listField @"args" (defer \_ -> inputValueType)
       !#> unwrap >>> _.args
-    .> GraphQL.field "isDeprecated" Scalar.boolean
+    .> GraphQL.field @"isDeprecated" Scalar.boolean
       !#> unwrap >>> _.deprecationReason >>> isJust
-    .> GraphQL.nullableField "deprecationReason" Scalar.string
+    .> GraphQL.nullableField @"deprecationReason" Scalar.string
       !#> unwrap >>> _.deprecationReason
 
   enumValueType :: GraphQL.ObjectType m EnumValueIntrospection
@@ -121,13 +121,13 @@ typeType = typeType'
       One possible value for a given Enum. Enum values are unique values, not a placeholder for a
       string or numeric value. However an Enum value is returned in a JSON response as a string.
     """
-    .> GraphQL.field "name" Scalar.string
+    .> GraphQL.field @"name" Scalar.string
       !#> unwrap >>> _.name
-    .> GraphQL.nullableField "description" Scalar.string
+    .> GraphQL.nullableField @"description" Scalar.string
       !#> unwrap >>> _.description
-    .> GraphQL.field "isDeprecated" Scalar.boolean
+    .> GraphQL.field @"isDeprecated" Scalar.boolean
       !#> unwrap >>> _.deprecationReason >>> isJust
-    .> GraphQL.nullableField "deprecationReason" Scalar.string
+    .> GraphQL.nullableField @"deprecationReason" Scalar.string
       !#> unwrap >>> _.deprecationReason
 
   inputValueType :: GraphQL.ObjectType m InputValueIntrospection
@@ -136,13 +136,13 @@ typeType = typeType'
       Arguments provided to Fields or Directives and the input fields of an InputObject are
       represented as Input Values which describe their type and optionally a default value.
     """
-    .> GraphQL.field "name" Scalar.string
+    .> GraphQL.field @"name" Scalar.string
       !#> unwrap >>> _.name
-    .> GraphQL.nullableField "description" Scalar.string
+    .> GraphQL.nullableField @"description" Scalar.string
       !#> unwrap >>> _.description
-    .> GraphQL.field "type" (defer \_ -> typeType')
+    .> GraphQL.field @"type" (defer \_ -> typeType')
       !#> unwrap >>> _.type >>> (_ $ unit)
-    .> GraphQL.nullableField "defaultValue" Scalar.string
+    .> GraphQL.nullableField @"defaultValue" Scalar.string
       !#> unwrap >>> _.defaultValue
 
 

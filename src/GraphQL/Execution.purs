@@ -56,9 +56,9 @@ execute (DocumentNode { definitions }) (Schema s) variables operation root = do
             , mutationType: map introspect s.mutation
             }
         metaQuery = s.query
-          .> field "__schema" (schemaType :: ObjectType m SchemaIntrospection)
+          .> field @"__schema" (schemaType :: ObjectType m SchemaIntrospection)
             !#> const schemaIntrospection
-          .> nullableField "__type" (typeType :: ObjectType m TypeIntrospection)
+          .> nullableField @"__type" (typeType :: ObjectType m TypeIntrospection)
             ?> arg @"name" Scalar.string
             !> ( \args _ -> pure $ findTypeByName args.name schemaIntrospection )
       in

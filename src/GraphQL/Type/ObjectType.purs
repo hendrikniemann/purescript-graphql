@@ -23,6 +23,7 @@ import GraphQL.Language.AST as AST
 import GraphQL.OptionallyParallel (class OptionallyParallel, optionallyParallel, optionallySequential)
 import GraphQL.Type.Class (class GraphQLType, class OutputType, ExecutionContext)
 import GraphQL.Type.Introspection.Datatypes as IntrospectionTypes
+import Type.Prelude (Proxy)
 
 
 newtype ObjectType m a =
@@ -106,10 +107,11 @@ derive instance newtypeExecutableField :: Newtype (ExecutableField m a) _
 
 
 -- | Object types can have fields. Fields are constructed using the `field` function from this
--- | module and added to object types using the `:>` operator.
-newtype Field m a argsd argsp =
+-- | module and added to object types using the `.>` operator.
+newtype Field :: forall k. (Type -> Type) -> Type -> k -> Row Type -> Row Type -> Type
+newtype Field m a n argsd argsp =
   Field
-    { name :: String
+    { name :: Proxy n
     , description :: Maybe String
     , typeIntrospection :: Unit -> IntrospectionTypes.TypeIntrospection
     , argumentIntrospections :: Array IntrospectionTypes.InputValueIntrospection
@@ -118,7 +120,7 @@ newtype Field m a argsd argsp =
     }
 
 
-derive instance newtypeField :: Newtype (Field m a argsd argsp) _
+derive instance newtypeField :: Newtype (Field m a n argsd argsp) _
 
 
 -- | Fields can have multiple arguments. Arguments are constructed using the `arg` function from

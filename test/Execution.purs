@@ -61,39 +61,39 @@ queryType :: GraphQL.ObjectType (Either Error) String
 queryType =
   GraphQL.objectType "Query"
     :> "The root query type"
-    .> GraphQL.field "hello" GraphQL.string
+    .> GraphQL.field @"hello" GraphQL.string
       :> "A simple test field that connects the root string with a greeting."
       !> (\_ p -> pure $ "Hello " <> p <> "!")
-    .> GraphQL.field "greet" GraphQL.string
+    .> GraphQL.field @"greet" GraphQL.string
       :> "A field that takes a name and responds with a presonalized greeting."
       ?> GraphQL.arg @"name" GraphQL.string
       !> (\{ name } _ -> pure $ "Greetings " <> name <> "!")
-    .> GraphQL.field "test" GraphQL.int
+    .> GraphQL.field @"test" GraphQL.int
       !#> const 42
-    .> GraphQL.field "nested" userType
+    .> GraphQL.field @"nested" userType
       !#> (const $ User { id: "user1", name: "Hendrik", age: 25, level: NormalUser })
-    .> GraphQL.listField "someList" GraphQL.string
+    .> GraphQL.listField @"someList" GraphQL.string
       !#> (const ["This", "is", "a", "little", "list"])
-    .> GraphQL.nullableField "nullable" GraphQL.float
+    .> GraphQL.nullableField @"nullable" GraphQL.float
       !#> (const Nothing)
-    .> GraphQL.field "reflect" GraphQL.string
+    .> GraphQL.field @"reflect" GraphQL.string
       ?> GraphQL.arg @"argIn" userLevelType
       !> (\{ argIn } _ -> pure $ show argIn)
-    .> GraphQL.field "reflectStringOptional" GraphQL.string
+    .> GraphQL.field @"reflectStringOptional" GraphQL.string
       ?> GraphQL.optionalArg @"argIn" GraphQL.string
       !> (\{ argIn } _ -> pure $ fromMaybe "default" argIn)
-    .> GraphQL.field "reflectStringDefault" GraphQL.string
+    .> GraphQL.field @"reflectStringDefault" GraphQL.string
       ?> GraphQL.arg @"argIn" GraphQL.string `withDefaultValue` "default"
       !> (\{ argIn } _ -> pure argIn)
-    .> GraphQL.field "reflectStringDefaultOptional" GraphQL.string
+    .> GraphQL.field @"reflectStringDefaultOptional" GraphQL.string
       ?> GraphQL.optionalArg @"argIn" GraphQL.string `withDefaultValue` pure "default"
       !> (\{ argIn } _ -> pure $ fromMaybe "null" argIn)
-    .> GraphQL.field "toggle" GraphQL.boolean
+    .> GraphQL.field @"toggle" GraphQL.boolean
       ?> GraphQL.arg @"on" GraphQL.boolean
       !> (\{ on: onArg } _ -> pure $ not onArg)
-    .> GraphQL.nullableField "fail" GraphQL.boolean
+    .> GraphQL.nullableField @"fail" GraphQL.boolean
       !!> (\_ -> throwError $ error "Always fails at runtime.")
-    .> GraphQL.field "unionField" exampleUnionType
+    .> GraphQL.field @"unionField" exampleUnionType
       ?> GraphQL.arg @"type" GraphQL.string
       !> resolveUnion
 
@@ -116,7 +116,7 @@ testType :: GraphQL.ObjectType (Either Error) String
 testType =
   GraphQL.objectType "Test"
     :> "A test type"
-    .> GraphQL.field "test" GraphQL.string
+    .> GraphQL.field @"test" GraphQL.string
       !#> const "test"
 
 
@@ -125,13 +125,13 @@ userType :: GraphQL.ObjectType (Either Error) User
 userType =
   GraphQL.objectType "User"
     :> "A type for all users in the database"
-    .> GraphQL.field "id" GraphQL.string
+    .> GraphQL.field @"id" GraphQL.string
       !#> unwrap >>> _.id
-    .> GraphQL.field "name" GraphQL.string
+    .> GraphQL.field @"name" GraphQL.string
       !#> unwrap >>> _.name
-    .> GraphQL.field "age" GraphQL.int
+    .> GraphQL.field @"age" GraphQL.int
       !#> unwrap >>> _.age
-    .> GraphQL.field "level" userLevelType
+    .> GraphQL.field @"level" userLevelType
       !#> unwrap >>> _.level
 
 

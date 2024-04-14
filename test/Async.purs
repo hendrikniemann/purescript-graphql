@@ -22,7 +22,7 @@ queryType :: GraphQL.ObjectType Aff Unit
 queryType =
   GraphQL.objectType "Query"
     :> "The root query type."
-    .> GraphQL.field "async" GraphQL.string
+    .> GraphQL.field @"async" GraphQL.string
       :> "An asynchronous field."
       !> asyncResolver
 
