@@ -43,7 +43,7 @@ main = do
 schema :: GraphQL.Schema Effect Unit
 schema = GraphQL.Schema { query: queryType, mutation: Nothing }
 
-queryType :: GraphQL.ObjectType (ReaderT String Effect) Unit
+queryType :: GraphQL.ObjectType Effect Unit
 queryType =
   GraphQL.objectType "Query"
     :> "The root query type."
